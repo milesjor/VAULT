@@ -142,5 +142,5 @@ python ./vault.py -u CATCTTACGATTACGCCAACCACTGCGGNNNNNTGNNNNNGACACATTCTCCCAGGCCC
 
 ### 5' end UMI and 3' end UMI
 <p align="center">
-<img src="https://github.com/milesjor/VAULT/tree/master/example/pic/connect_two_end_umi.png" width="600"/>
+<img src="https://github.com/milesjor/VAULT/blob/master/example/pic/connect_two_end_umi.png" width="600"/>
 </p>

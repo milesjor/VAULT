@@ -11,11 +11,13 @@ from operator import itemgetter
 
 def get_argparse():
     parser = argparse.ArgumentParser(description='This is for correcting the position of SNP in vcf file')
-    parser.add_argument('-s', '--save_path', type=str, default="./", help='path/to/save/')
     parser.add_argument('-v', '--vcf_file', type=validate_file, required=True, help='path/to/file.vcf')
     parser.add_argument('-c', '--chr_name', type=str, required=True, help='chromosome name')
     parser.add_argument('-p', '--pos_change', type=str, required=True, help='position change')
-
+    parser.add_argument('-b', '--total_base', type=int, help='the length of reference genome.'
+                                                             'if value is not None, will reverse the coordinate')
+    parser.add_argument('-s', '--save_path', type=str, default="./", help='path/to/save/')
+    
     return parser.parse_args()
 
 
@@ -23,6 +25,29 @@ def validate_file(x):
     if not os.path.exists(x):
         raise argparse.ArgumentTypeError("{0} does not exist".format(x))
     return x
+
+
+def reverse_coordinate(args):
+    vcf = args.vcf_file
+    file_name = re.split(r'/', vcf)[-1]
+    file_name = re.split(r'.vcf', file_name)[0]
+    outvcf = args.save_path + '/' + file_name + '_PosBaseRev.vcf.indel_pos_not_right.tmp'
+    total_base = int(args.total_base) + 1
+    with open(vcf, 'r') as infile, open(outvcf, 'w') as outfile:
+        for line in infile:
+            if line.startswith('#'):
+                outfile.writelines(line)
+            else:
+                line = re.split(r'\t', line)
+                pos = total_base - int(line[1])
+                REF_base = line[3]
+                ALT_base = line[4]
+                complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+                REF_reverse_complement = "".join(complement.get(base, base) for base in reversed(REF_base))
+                ALT_reverse_complement = "".join(complement.get(base, base) for base in reversed(ALT_base))
+                outfile.writelines('\t'.join((line[0], str(pos), line[2], str(REF_reverse_complement),
+                                              str(ALT_reverse_complement), '\t'.join(line[5:]))))
+    return outvcf
 
 
 def correct_vcf(args):
@@ -73,6 +98,10 @@ def main():
     print("save path :   %s" % args.save_path)
     print("chr name  :   %s" % args.chr_name)
     print("pos change:   %s" % args.pos_change)
+
+    if args.total_base is not None:
+        print("\nThe coordinate will be reversed, to make the strand direction same as published reference\n")
+        args.vcf_file = reverse_coordinate(args)
 
     correct_vcf(args)
 

@@ -33,7 +33,7 @@ def validate_file(x):
 
 
 def pre_alignment(args, save_path, file_name):
-    cmd = """minimap2 -t {thread} -ax {ax} {refer} {fastq} > {sam}
+    cmd = """minimap2 -t {thread} -ax {ax} {refer} {fastq} > {sam} 2>>{log}
              samtools sort -@ {thread} {sam} -o {bam}
              samtools index -@ {thread} {bam}
              echo -e "\n\n\n{name}_samtools_flagstat\t{sam}" >> {log}

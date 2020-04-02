@@ -9,6 +9,7 @@ import argparse
 import os
 import re
 import io
+import sys
 from operator import itemgetter
 
 
@@ -20,8 +21,17 @@ def get_argparse():
     parser.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
     parser.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
     parser.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
+    parser.add_argument('-g', '--genome', type=str, default='hchrM.F9.UMIs',
+                     choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs'], help='the genome used in VAULT')
+    parser.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.genome == 'mmt_nod_F6_10N_to_C57':
+        args.chr_name = 'chrMT'
+    elif args.genome == 'hchrM.F9.UMIs':
+        args.chr_name = 'chrM'
+
+    return args
 
 
 def validate_file(x):
@@ -57,10 +67,11 @@ def point2bin(args):
 
 
 def correct_vcf(args):
-    chr_name = 'chrMT'
+    chr_name = args.chr_name
     vcf = args.vcf_file
     outvcf1 = args.save_path + '/' + args.name + '_correct.pos.vcf'
     outvcf2 = args.save_path + '/' + args.name + '_correct.pos.sorted.vcf'
+    genome_used = args.genome
     with open(vcf, 'r') as infile, open(outvcf1, 'w') as outfile1, open(outvcf2, 'w') as outfile2:
         new_line = []
         for line in infile:
@@ -71,7 +82,8 @@ def correct_vcf(args):
                 line = re.split(r'\t', line)
                 pos = int(line[1])
                 info = line[7]
-                if not info.startswith('INDEL'):  # below is for mmt_nod_F6_10N.fa to mouse C57 genome
+                # if not info.startswith('INDEL'):  # below is for mmt_nod_F6_10N.fa to mouse C57 genome
+                if genome_used == 'mmt_nod_F6_10N_to_C57':
                     if 41 <= pos <= 1599:
                         pos = pos + 14700
                         outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
@@ -92,6 +104,26 @@ def correct_vcf(args):
 
                     else:
                         print("\nWrong position: \n%s\n" % '\t'.join(line))
+
+                elif genome_used == 'hchrM.F9.UMIs':
+                    if 38 <= pos <= 13307:
+                        pos = pos + 3262
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    elif 13308 < pos <= 16571:
+                        pos = pos - 13307
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    else:
+                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+
+                else:
+                    sys.stderr.write('There is no preset parameter for changing chromosome position!')
+                    sys.exit(1)
 
         new_line.sort(key=itemgetter(1), reverse=False)
         for record in new_line:

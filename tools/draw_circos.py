@@ -22,13 +22,15 @@ def get_argparse():
     parser.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
     parser.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
     parser.add_argument('-g', '--genome', type=str, default='hchrM.F9.UMIs',
-                     choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs'], help='the genome used in VAULT')
+                     choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'], help='the genome used in VAULT')
     parser.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
 
     args = parser.parse_args()
     if args.genome == 'mmt_nod_F6_10N_to_C57':
         args.chr_name = 'chrMT'
     elif args.genome == 'hchrM.F9.UMIs':
+        args.chr_name = 'chrM'
+    elif args.genome == 'hchrM.F6.UMIs':
         args.chr_name = 'chrM'
 
     return args
@@ -75,14 +77,18 @@ def correct_vcf(args):
     with open(vcf, 'r') as infile, open(outvcf1, 'w') as outfile1, open(outvcf2, 'w') as outfile2:
         new_line = []
         for line in infile:
+            # info_field = re.split(r'\t', line)[7]
             if line.startswith('#'):
                 outfile1.writelines(line)
                 outfile2.writelines(line)
+
+            # elif info_field.startswith('INDEL'):  # skip indel in vcf
+            #     pass
+
             else:
                 line = re.split(r'\t', line)
                 pos = int(line[1])
-                info = line[7]
-                # if not info.startswith('INDEL'):  # below is for mmt_nod_F6_10N.fa to mouse C57 genome
+                # below is for mmt_nod_F6_10N.fa to mouse C57 genome
                 if genome_used == 'mmt_nod_F6_10N_to_C57':
                     if 41 <= pos <= 1599:
                         pos = pos + 14700
@@ -112,8 +118,40 @@ def correct_vcf(args):
                         line = tuple([chr_name, pos] + line[2:])
                         new_line.append(line)
 
-                    elif 13308 < pos <= 16571:
+                    elif 13307 < pos <= 16571:
                         pos = pos - 13307
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    else:
+                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+
+                elif genome_used == 'hchrM.F6.UMIs':
+                    if 39 <= pos <= 1748:
+                        pos = pos + 14821
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    elif 1748 < pos <= 16573:
+                        pos = pos - 1748
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    else:
+                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+
+                elif genome_used == 'mmt_c57_F6_10N':
+                    if 41 <= pos <= 1599:
+                        pos = pos + 14700
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    elif 1599 < pos <= 16296:
+                        pos = pos - 1599
                         outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
                         line = tuple([chr_name, pos] + line[2:])
                         new_line.append(line)
@@ -132,7 +170,17 @@ def correct_vcf(args):
 
 def vcf_circos(args):
     vcf = args.save_path + '/' + args.name + '_correct.pos.sorted.vcf'
-    out = args.save_path + '/' + args.name + '_correct.pos.snp.txt'
+    out = args.save_path + '/' + args.name + '_correct.pos.snv.txt'
+    snv_vcf = args.save_path + '/' + args.name + '_correct.pos.sorted.snv.vcf'
+
+    with open(vcf, 'r') as infile, open(snv_vcf, 'w') as outfile:
+        for line in infile:
+            if line.startswith('#'):
+                outfile.writelines(line)
+            else:
+                info_field = re.split(r'\t', line)[7]
+                if not info_field.startswith('INDEL'):
+                    outfile.writelines(line)
 
     def read_vcf(path):
         with open(path, 'r') as f:
@@ -144,7 +192,7 @@ def vcf_circos(args):
             sep='\t'
         ).rename(columns={'#CHROM': 'CHROM'})
 
-    pd_vcf = read_vcf(vcf)
+    pd_vcf = read_vcf(snv_vcf)
 
     # print(pd_vcf['POS'])
     # print(pd_vcf.POS.nunique())
@@ -160,22 +208,46 @@ def vcf_circos(args):
     np.savetxt(out, snp_df, fmt='%s')
 
 
+def count_to_freq(args):
+    position = args.save_path + '/all.coverage.3plus.correct.pos.txt'
+    circos = args.save_path + '/' + args.name + '_correct.pos.snv.txt'
+    corrected_circos = args.save_path + '/' + args.name + '_correct.pos.snv.freq.txt'
+
+    with open(position, 'r') as infile1, open(circos, 'r') as infile2, open(corrected_circos, 'w') as outfile:
+        dir = {}
+        for line in infile1:
+            v, k = line.strip().split(' ')
+            dir[k.strip()] = v.strip()
+            # print(dir)
+
+        for line2 in infile2:
+            line2_split = line2.split(' ')
+            count = line2_split[3]
+            pos = line2_split[1]
+            depth = dir[pos]
+            freq = round(int(count) / int(depth), 6)
+            new_line2 = line2_split[0] + ' ' + line2_split[1] + ' ' + line2_split[2] + ' ' + str(freq) + '\n'
+            outfile.writelines(new_line2)
+
+
 def main():
     args = get_argparse()
     if not os.path.isdir(args.save_path):
         os.mkdir(args.save_path)
     print("\n-------------- received arguments -------------")
-    print("file name:   %s" % args.name)
-    print("save path:   %s" % args.save_path)
+    print("file name:     %s" % args.name)
+    print("save path:     %s" % args.save_path)
 
     if os.path.exists(str(args.depth_file)):
-        print("depth file:  %s" % args.depth_file)
+        print("depth file:    %s" % args.depth_file)
         point2bin(args)
 
     if os.path.exists(str(args.vcf_file)):
-        print("vcf file:    %s\n" % args.vcf_file)
+        print("vcf file:      %s" % args.vcf_file)
+        print("used genome:   %s\n" % args.genome)
         correct_vcf(args)
         vcf_circos(args)
+        count_to_freq(args)
 
 
 if __name__ == '__main__':

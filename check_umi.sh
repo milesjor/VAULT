@@ -177,3 +177,6 @@ fi
 
 ################### process UMI analysis ###################
 umi_analysis
+
+rm ${s}/${n}.01.reads_with_adapter.fastq
+rm ${s}/${n}.01.extract_reads_with_adapter.detail

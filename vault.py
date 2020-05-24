@@ -13,7 +13,7 @@ import glob
 import sys
 from datetime import datetime
 from _version import vault_version
-from tools import extract_mapped_reads, filter_sv
+from tools import extract_mapped_reads, filter_sv, umi_group_filter
 from variants_calling import snp_calling, sv_calling
 
 
@@ -32,10 +32,12 @@ def get_argparse():
     opt.add_argument('-t', '--thread', type=int, default='5', help='thread/process number [5]')
     opt.add_argument('-T', '--threshold', type=int, default='5', help='Threshold of read number for snp analysis [5]')
     opt.add_argument('-b', '--bash_thread', type=int, default='1', help='Thread for running bash cmd [1]')
+    opt.add_argument('-F', '--allele_freq', type=float, default='0.67', help='Filter SNVs and SVs by allele frequency [0.67]')
     opt.add_argument('-p', '--pe_fastq', type=str, help='read2.fastq for illumina pair-end sequencing')
     opt.add_argument('-a', '--align_mode', type=str, default='map-ont',
                      choices=['sr', 'map-ont', 'map-pb'], help='parameter in alignment, minimap2 -ax [sr|map-ont|map-pb]')
     opt.add_argument('--unmapped_reads', action='store_true', help='extract mapped reads before UMI analysis')
+    opt.add_argument('--group_filter', action='store_true', help='filter out low confident UMI groups')
     opt.add_argument('-v', '--version', action='version', version=vault_version, help='show the current version')
 
     args = args.parse_args()
@@ -61,9 +63,9 @@ def analyze_umi(args):
     left_flank = args.umi_adapter[0:n_index[0]]
     right_flank = args.umi_adapter[n_index[-1]+1:]
     umi = args.umi_adapter[n_index[0]:n_index[-1]+1]
-    print("\nleft_flank:  ", left_flank)
+    print("left_flank:  ", left_flank)
     print("umi:         ", umi)
-    print("right_flank:  %s\n" % right_flank)
+    print("right_flank:  %s" % right_flank)
 
     if not os.path.isdir(args.save_path):
         os.mkdir(args.save_path)
@@ -80,7 +82,7 @@ def analyze_umi(args):
                                                                               error=args.error,
                                                                               thread=thread,
                                                                               end=end)
-        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)  # print only stderr to screen
 
     py_threads = []
     if args.pe_fastq is None:
@@ -128,6 +130,9 @@ def extract_name_lst(args):
     else:
         file5 = args.save_path + '/umi_analysis/5end_UMIs/umi_analysis.07.1read_count.2umi.3read_name.pe.lst'
 
+        # # Below is for the specific Illumina data set
+        # file5 = end5 + '/umi_analysis.07.1read_count.2umi.3read_name.lst'
+
     file3 = end3 + '/umi_analysis.07.1read_count.2umi.3read_name.lst'
 
     # multiprocessing module for extracting read name list with same umi.
@@ -151,8 +156,6 @@ def extract_name_lst(args):
     p.close()
     p.join()
 
-    print("%s    Extract read name list finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
 
 def lst2fastq_variant(args, umi_n5):
     umi_regex5 = '^' + umi_n5 + '$'
@@ -167,6 +170,9 @@ def lst2fastq_variant(args, umi_n5):
         file5 = args.save_path + '/umi_analysis/5end_UMIs/umi_analysis.07.1read_count.2umi.3read_name.lst'
     else:
         file5 = args.save_path + '/umi_analysis/5end_UMIs/umi_analysis.07.1read_count.2umi.3read_name.pe.lst'
+
+        # # Below is for the specific Illumina data set
+        # file5 = args.save_path + '/umi_analysis/5end_UMIs/umi_analysis.07.1read_count.2umi.3read_name.lst'
 
     if not os.path.isdir(args.save_path + '/grouped_reads'):
         os.mkdir(args.save_path + '/grouped_reads')
@@ -190,7 +196,7 @@ def lst2fastq_variant(args, umi_n5):
                                                 args.refer, args.bash_thread, args.align_mode, args.pe_fastq))
     p.close()
     p.join()
-    print("%s    5 end snp analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("%s    5'+3' and 5' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     # multiprocessing module for processing unused 3' end umi, and extract reads, and analyze snp
     if args.pe_fastq is None:
@@ -204,7 +210,7 @@ def lst2fastq_variant(args, umi_n5):
                                                     args.refer, args.bash_thread, args.align_mode, args.pe_fastq, name_lst3))
         p.close()
         p.join()
-        print("%s    3 end snp analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        print("%s    The rest 3' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def use_class_5end(a, b, c, d, e, f, g, h, i, j=''):
@@ -268,6 +274,8 @@ class ProcessUmi:
                                                                        outfile=of)
         subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
         fastq_file = of
+
+        # Below is for normal data set
         if self.read2 is not None:
             of2 = self.save + '/grouped_reads/' + read_folder + str(read_count) + '_' + umi_name + '.read2.fastq'
             cmd = """seqtk subseq {fastq} {name_lst} > {outfile}""".format(fastq=self.read2,
@@ -275,6 +283,20 @@ class ProcessUmi:
                                                                            outfile=of2)
             subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
             fastq_file = of + ' ' + of2
+
+        # # Below is for the specific Illumina data set
+        # if self.read2 is not None:
+        #     of3 = self.save + '/grouped_reads/' + read_folder + str(read_count) + '_' + umi_name + '.read2.raw.fastq'
+        #     of2 = self.save + '/grouped_reads/' + read_folder + str(read_count) + '_' + umi_name + '.read2.fastq'
+        #     cmd = """seqtk subseq {fastq} {name_lst} > {outfile}
+        #              sh /home/bic/bic/downloads/bbmap/bbduk.sh in={outfile} out={outfile2} ftr=30
+        #              """.format(fastq=self.read2,
+        #                         name_lst=name_lst,
+        #                         outfile=of3,
+        #                         outfile2=of2)
+        #     subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+        #     fastq_file = of + ' ' + of2
+
         os.remove(name_lst)
 
         if not os.path.isdir(self.save + snp_folder):
@@ -330,30 +352,79 @@ class ProcessUmi:
 
 
 def final_clean_up(args):
+    # process SNV and InDel vcf
     snp_regex = args.save_path + '/snp/perfect_umi/*/vcf/*snp.vcf'
     all_snp = args.save_path + '/snp/all_snp_from_perfect_umi.vcf'
     pass_snp = args.save_path + '/snp/pass_snp_from_perfect_umi.vcf'
-    find_vcf_files(snp_regex, all_snp, pass_snp)
 
+    all_snp_pcent = args.save_path + '/snp/all_snp_from_perfect_umi.pcent.vcf'
+    all_snp_pcent_flt = args.save_path + '/snp/all_snp_from_perfect_umi.pcent.flt.vcf'
+
+    find_vcf_files(snp_regex, all_snp)
+
+    save_dir = args.save_path + '/snp'
+    umi_group_filter.add_pcent(save_dir, all_snp_pcent)
+
+    if args.group_filter is True:
+        awk_filter = "awk '{if($3>0.35 && $3<0.65)print}' | awk '{if($7 < 0.4) print}'"
+        cmd = """cat {save_dir}/umi_group.flt.summary.txt | {filter} > {save_dir}/wrong.group.summary.txt
+                 cat {save_dir}/wrong.group.summary.txt | cut -f1 | sort -k1 > {save_dir}/wrong.group.lst
+                 ls {save_dir}/perfect_umi | sort | uniq > {save_dir}/all.group.lst
+                 comm -23 {save_dir}/all.group.lst {save_dir}/wrong.group.lst > {save_dir}/pass.group.lst
+                 
+                 split -l 50 {save_dir}/pass.group.lst {save_dir}/pattern-file.split.
+                 cat {save_dir}/all_snp_from_perfect_umi.pcent.vcf | grep "^#" > {save_dir}/all_snp_from_perfect_umi.pcent.rem.vcf
+                 for CHUNK in {save_dir}/pattern-file.split.* ; do
+                    cat {save_dir}/all_snp_from_perfect_umi.pcent.vcf | grep -v "^#" | grep -f "$CHUNK" \
+                        >> {save_dir}/all_snp_from_perfect_umi.pcent.rem.vcf
+                 done
+                 rm {save_dir}/pattern-file.split.* {save_dir}/all.group.lst
+                 
+                 cat {save_dir}/all_snp_from_perfect_umi.pcent.rem.vcf | \
+                    bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || INFO/VARP<{alle_freq}' \
+                    > {save_dir}/all_snp_from_perfect_umi.pcent.rem.flt.vcf
+                    
+                 cat {save_dir}/all_snp_from_perfect_umi.pcent.rem.flt.vcf | grep -v LowQual \
+                    > {save_dir}/pass_snp_from_perfect_umi.flt.vcf
+                 find {save_dir}/perfect_umi/ -name "*coverage.3plus.txt" -print0 | xargs -0 cat > {save_dir}/coverage.3plus.txt
+                 """.format(save_dir=save_dir,
+                            alle_freq=args.allele_freq,
+                            filter=awk_filter)
+
+    else:
+        cmd = """cat {all_snp_pcent} | bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || INFO/VARP<{alle_freq}' > {fltvcf}
+                 rm {all_snp_pcent} {save}/snp/umi_group.flt.summary.txt
+                 cat {fltvcf} | grep -v LowQual > {pass_snp}
+                 find {save}/snp/perfect_umi/ -name "*coverage.3plus.txt" -print0 | xargs -0 cat > {save}/snp/coverage.3plus.txt
+                 """.format(all_snp_pcent=all_snp_pcent,
+                            fltvcf=all_snp_pcent_flt,
+                            save=args.save_path,
+                            alle_freq=args.allele_freq,
+                            pass_snp=pass_snp)
+
+    subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+
+    # process SV vcf
     if args.align_mode != 'sr':
         sv_regex = args.save_path + '/snp/perfect_umi/*/vcf/*sv.vcf'
         all_sv = args.save_path + '/snp/all_sv_from_perfect_umi.vcf'
         find_vcf_files(sv_regex, all_sv)
 
-        flt_sv_regex = args.save_path + '/snp/perfect_umi/*/vcf/*sv.flt.vcf'
-        flt_sv = args.save_path + '/snp/flt_sv_from_perfect_umi.vcf'
-        find_vcf_files(flt_sv_regex, flt_sv)
         save_path = args.save_path + '/snp/'
-        filter_sv.filter_sv(all_sv, save_path, float('0.5'))
+        filter_sv.filter_sv(all_sv, save_path, args.allele_freq)
 
 
-def find_vcf_files(file_regex, allvcf, passvcf='no'):
+def find_vcf_files(file_regex, allvcf):
     file_list = glob.glob(str(file_regex))
     if len(file_list) >= 1:
         with open(allvcf, 'w') as of, open(file_list[0], 'r') as header:
             for line in header:
-                if line.startswith('#'):
+                if line.startswith('##'):
                     of.writelines(line)
+                elif line.startswith('#'):
+                    line = re.split(r'perfect_umi', line)
+                    new_line = line[0] + 'perfect_umi/*\n'
+                    of.writelines(''.join(new_line))
 
             for vcf in file_list:
                 vcf_file = open(vcf, 'r')
@@ -363,17 +434,9 @@ def find_vcf_files(file_regex, allvcf, passvcf='no'):
                         line = re.split(r'\t', line)
                         of.writelines('\t'.join((line[0], line[1], sample_id, '\t'.join(line[3:]))))
 
-        if passvcf != 'no':
-            with open(passvcf, 'w') as ps_out:
-                with open(allvcf, 'r') as infile:
-                    for line in infile:
-                        if line.startswith('#'):
-                            ps_out.writelines(line)
-                        elif re.split(r'\t', line)[6] == 'PASS':
-                            ps_out.writelines(line)
-
     else:
-        print("No VCF file detected! Please check %s\n" % file_regex)
+        sys.stderr.write("No VCF file detected! Please check %s\n" % file_regex)
+        sys.exit(1)
 
 
 def combine_pe_umi(args):
@@ -428,11 +491,18 @@ def main():
         if args.pe_fastq is not None:
             args.pe_fastq = save_path + file_name + '.read2.mapped.fastq'
 
+    print("%s    Start extracting UMIs from reads ...\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     umi_n5 = analyze_umi(args)
+
+    # Below is for the specific Illumina data set
+    # combine_pe_umi(args)
+
     combine_pe_umi(args)
-    print("\n%s    UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("\n%s    Extract UMIs from reads finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     extract_name_lst(args)
+    print("%s    Group reads by UMIs finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # umi_n5 = 'NNNNNNNNNN'
+    print("%s    Start individual UMI group analysis ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     lst2fastq_variant(args, umi_n5)
     final_clean_up(args)
     print("\n%s    ------------ Jobs done! ------------\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))

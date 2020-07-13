@@ -1,7 +1,6 @@
-#!/home/bic/anaconda3/envs/bioconda/bin/python
-# This is for analyzing UMI labeled reads
+#!/usr/bin/env python3
 # Chongwei 20190619
-# Email: chongwei.bi@kaust.edu.sa
+# Email: bicwei@gmail.com
 
 import argparse
 import subprocess
@@ -13,36 +12,115 @@ import glob
 import sys
 from datetime import datetime
 from _version import vault_version
-from tools import extract_mapped_reads, filter_sv, umi_group_filter
+from tools import extract_mapped_reads, filter_sv, umi_group_filter, call_consensus, change_VCF_pos, draw_circos
 from variants_calling import snp_calling, sv_calling
 
 
 def get_argparse():
-    args = argparse.ArgumentParser(description='This is a python script for analyzing UMI labeled reads.'
-                                               'require: cutadapt, minimap2, seqtk, samtools, sniffles',
+    args = argparse.ArgumentParser(description='This is for analyzing UMI labeled reads in IDMseq and IMTseq.',
                                    epilog='Refer github https://github.com/milesjor/VAULT for more detail')
+    subparsers = args.add_subparsers(title='subcommands',
+                                     description='valid subcommands',
+                                     help='additional help',
+                                     dest='subcommands_name')
+    args.add_argument('-v', '--version', action='version', version=vault_version, help='show the current version')
+
     req = args.add_argument_group(title='Required options')
-    req.add_argument('-u', '--umi_adapter', type=str, required=True, help='UMI sequence, automatically detect NNNATGCNNN as UMI')
-    req.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
-    req.add_argument('-r', '--refer', type=validate_file, required=True, help='path/to/ref.fa')
-    req.add_argument('-q', '--fastq', type=validate_file, required=True, help='path/to/reads.fastq, or fastq.gz')
+    req.add_argument('-u', '--umi_adapter', type=str, help='UMI sequence, automatically detect NNNATGCNNN as UMI')
+    req.add_argument('-s', '--save_path', type=str, help='path/to/save/')
+    req.add_argument('-r', '--refer', type=validate_file, help='path/to/ref.fa')
+    req.add_argument('-q', '--fastq', type=validate_file, help='path/to/reads.fastq, or fastq.gz')
 
     opt = args.add_argument_group(title='Optional options')
-    opt.add_argument('-e', '--error', type=str, default='0.11', help='error tolerate rate for umi analysis (read error rate) [0.11]')
-    opt.add_argument('-t', '--thread', type=int, default='5', help='thread/process number [5]')
-    opt.add_argument('-T', '--threshold', type=int, default='5', help='Threshold of read number for snp analysis [5]')
-    opt.add_argument('-b', '--bash_thread', type=int, default='1', help='Thread for running bash cmd [1]')
-    opt.add_argument('-F', '--allele_freq', type=float, default='0.67', help='Filter SNVs and SVs by allele frequency [0.67]')
+    opt.add_argument('-e', '--error', type=str, default='0.11', help='error tolerate rate in umi analysis '
+                                                                     '(depend on read error rate) [0.11]')
+    opt.add_argument('-t', '--thread', type=int, default='5', help='parallel process number [5]')
+    opt.add_argument('-T', '--threshold', type=int, default='5', help='threshold of read number for snp analysis [5]')
+    opt.add_argument('-b', '--bash_thread', type=int, default='1', help='thread for running bash cmd [1]')
+    opt.add_argument('-F', '--allele_freq', type=float, default='0.67', help='filter SNVs '
+                                                                             'by allelic frequency [0.67]')
+    opt.add_argument('-f', '--sv_freq', type=float, default='0.5', help='filter SVs by allelic frequency [0.5]')
     opt.add_argument('-p', '--pe_fastq', type=str, help='read2.fastq for illumina pair-end sequencing')
     opt.add_argument('-a', '--align_mode', type=str, default='map-ont',
-                     choices=['sr', 'map-ont', 'map-pb'], help='parameter in alignment, minimap2 -ax [sr|map-ont|map-pb]')
+                     choices=['sr', 'map-ont', 'map-pb'], help='parameter in alignment, '
+                                                               'minimap2 -ax [sr|map-ont|map-pb]')
     opt.add_argument('--unmapped_reads', action='store_true', help='extract mapped reads before UMI analysis')
-    opt.add_argument('--group_filter', action='store_true', help='filter out low confident UMI groups')
-    opt.add_argument('-v', '--version', action='version', version=vault_version, help='show the current version')
+    opt.add_argument('--group_filter', action='store_true', help='filter out low-confidence UMI groups')
+
+    # subcommands
+    consensus = subparsers.add_parser('consensus',
+                                      help='get consensus sequence from VAULT result',
+                                      description='This is for generating consensus sequence from VAULT result '
+                                                  'using canu + medaka. '
+                                                  'Just input the path of VAULT result folder '
+                                                  '--> the folder containing (/snp /grouped_reads /umi_analysis). ')
+    consensus.set_defaults(func=call_consensus.consensus_main)
+    consensus.add_argument('-s', '--save_path', type=str, required=True, help='path/to/VAULT_result_folder/')
+    consensus.add_argument('-t', '--thread', type=int, default='6', help='parallel worker [6]')
+    consensus.add_argument('-T', '--sub_thread', type=int, default='4', help='thread for every parallel worker [4]')
+    consensus.add_argument('--threshold', type=int, default='20', help='process UMI group with reads more than [20]')
+
+    position = subparsers.add_parser('position',
+                                     help='correct the position and chr_name in vcf file',
+                                     description='It will correct the position and chr_name in vcf file '
+                                                 'to enable variant annotation. It can also reverse the coordinate'
+                                                 ' and DNA base if the used referene in VAULT '
+                                                 'is reverse complimentary of the referene genome.')
+    position.set_defaults(func=change_VCF_pos.position_main)
+    position.add_argument('-v', '--vcf_file', type=validate_file, required=True, help='path/to/file.vcf')
+    position.add_argument('-c', '--chr_name', type=str, required=True, help='chromosome name')
+    position.add_argument('-p', '--pos_change', type=str, required=True, help='position change, e.g. +12300 or -55789')
+    position.add_argument('-b', '--total_base', type=int,
+                          help='the length of reference genome used. When provided, it will reverse the '
+                               'coordinate(position) and also do reverse complimentary of the DNA bases in vcf file')
+    position.add_argument('-s', '--save_path', type=str, default="./", help='path/to/save/')
+
+    circos = subparsers.add_parser('circos',
+                                   help='prepare data for circos, used in IMTseq',
+                                   description='This is for preparing data for circos. It is used in IMTseq. '
+                                               'For vcf file, it will correct position and remove indel. '
+                                               'For depth file, it will bin depth based on '
+                                               'user defined bin size.')
+    circos.set_defaults(func=draw_circos.circos_main)
+    circos.add_argument('-n', '--name', type=str, default="circos", help='prefix of output file')
+    circos.add_argument('-d', '--depth_file', type=validate_file, help='depth file from samtools depth')
+    circos.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
+    circos.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
+    circos.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
+    circos.add_argument('-g', '--genome', type=str,
+                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'],
+                        help='the genome used in VAULT')
+    circos.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
+    circos.add_argument('-A', '--keep_1alt', action='store_true',
+                        help='leave only 1 Alt in vcf file for helping SNV annotation')
+
+    group_filter = subparsers.add_parser('filter',
+                                         help='filter out low-confidence UMI groups',
+                                         description='This is for filtering out low-confidence UMI groups after '
+                                                     'VAULT analysis. It is the same as <vault --group_filter>')
+    group_filter.set_defaults(func=umi_group_filter.filter_main)
+    group_filter.add_argument('-s', '--save_path', type=str, required=True,
+                              help='path/to/snp (the path to snp folder generated by VAULT)')
+    group_filter.add_argument('-F', '--allele_freq', type=float, default='0.67', help='filter SNVs '
+                                                                                      'by allelic frequency [0.67]')
 
     args = args.parse_args()
-    if args.pe_fastq is not None:
-        args.align_mode = 'sr'
+
+    if args.subcommands_name in ["consensus", "position", "circos", "filter"]:
+        args.func(args)
+
+    else:
+        if args.pe_fastq is not None:
+            args.align_mode = 'sr'
+        if args.umi_adapter is None or args.save_path is None or args.refer is None or args.fastq is None:
+            sys.stderr.write("usage: vault [-h] [-v] -u UMI_ADAPTER -s SAVE_PATH -r REFER -q FASTQ\n"
+                             "             [-e ERROR] [-t THREAD] [-T THRESHOLD] [-b BASH_THREAD]\n"
+                             "             [-F ALLELE_FREQ] [-f SV_FREQ] [-a {sr,map-ont,map-pb}]\n"
+                             "             [-p PE_FASTQ] [--unmapped_reads] [--group_filter]\n"
+                             "             {consensus} ...\n"
+                             "vault: error: the following arguments are required: "
+                             "-u/--umi_adapter, -s/--save_path, -r/--refer, -q/--fastq\n")
+            sys.exit(1)
 
     return args
 
@@ -381,7 +459,7 @@ def final_clean_up(args):
                  rm {save_dir}/pattern-file.split.* {save_dir}/all.group.lst
                  
                  cat {save_dir}/all_snp_from_perfect_umi.pcent.rem.vcf | \
-                    bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || INFO/VARP<{alle_freq}' \
+                    bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || INFO/VARP<{alle_freq} || INFO/ALTC<3' \
                     > {save_dir}/all_snp_from_perfect_umi.pcent.rem.flt.vcf
                     
                  cat {save_dir}/all_snp_from_perfect_umi.pcent.rem.flt.vcf | grep -v LowQual \
@@ -392,7 +470,8 @@ def final_clean_up(args):
                             filter=awk_filter)
 
     else:
-        cmd = """cat {all_snp_pcent} | bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || INFO/VARP<{alle_freq}' > {fltvcf}
+        cmd = """cat {all_snp_pcent} | bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<3 || INFO/IMF<0.5 || \
+                    INFO/VARP<{alle_freq} || INFO/ALTC<3' > {fltvcf}
                  rm {all_snp_pcent} {save}/snp/umi_group.flt.summary.txt
                  cat {fltvcf} | grep -v LowQual > {pass_snp}
                  find {save}/snp/perfect_umi/ -name "*coverage.3plus.txt" -print0 | xargs -0 cat > {save}/snp/coverage.3plus.txt
@@ -411,7 +490,7 @@ def final_clean_up(args):
         find_vcf_files(sv_regex, all_sv)
 
         save_path = args.save_path + '/snp/'
-        filter_sv.filter_sv(all_sv, save_path, args.allele_freq)
+        filter_sv.filter_sv(all_sv, save_path, args.sv_freq)
 
 
 def find_vcf_files(file_regex, allvcf):
@@ -471,8 +550,30 @@ def combine_pe_umi(args):
         subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
 
 
+def check_tools():
+    if call_consensus.check_tool("minimap2") is not True:
+        sys.exit("ERROR! Executable minimap2 is not found!\n"
+                 "ERROR! Please install minimap2 -> `conda install minimap2=2.11`")
+    if call_consensus.check_tool("cutadapt") is not True:
+        sys.exit("ERROR! Executable cutadapt is not found!\n"
+                 "ERROR! Please install cutadapt -> `conda install cutadapt=2.7`")
+    if call_consensus.check_tool("samtools") is not True:
+        sys.exit("ERROR! Executable samtools is not found!\n"
+                 "ERROR! Please install samtools -> `conda install samtools=1.9`")
+    if call_consensus.check_tool("bcftools") is not True:
+        sys.exit("ERROR! Executable bcftools is not found!\n"
+                 "ERROR! Please install bcftools -> `conda install bcftools=1.9`")
+    if call_consensus.check_tool("seqtk") is not True:
+        sys.exit("ERROR! Executable seqtk is not found!\n"
+                 "ERROR! Please install seqtk -> `conda install seqtk=1.3`")
+    if call_consensus.check_tool("sniffles") is not True:
+        sys.exit("ERROR! Executable sniffles is not found!\n"
+                 "ERROR! Please install sniffles -> `conda install sniffles=1.0.11`")
+
+
 def main():
     args = get_argparse()
+    check_tools()
     print("\n%s    --------- received arguments ---------" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print("umi adapter:   ", args.umi_adapter)
     print("fastq file:    ", args.fastq)

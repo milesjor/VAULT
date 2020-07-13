@@ -16,7 +16,7 @@ Disable read-pair overlap detection.
 
 
 def snp_calling(save, thread, ax, refer, fastq, name):
-    count_number = """awk 'BEGIN{n=0}{if($3>=3);n+=1}END{print n}' """
+    count_number = """awk 'BEGIN{n=0}{if($3>=3)n+=1}END{print n}' """
     cmd = """# alignment
              minimap2 -t {thread} -a -x {ax} -Y --MD {refer} {fastq} > {save}/{name}.sv.sam 2>>{save}/{name}_alignment_summary.log
              echo "====== Alignment summary ======" >> {save}/{name}_alignment_summary.log
@@ -76,5 +76,5 @@ def sv_calling(save, thread, refer, fastq, name, map_mode='-x ont'):
 
 
 if __name__ == '__main__':
-    sys.stderr.write('This is a module. See commands with `vault.py -h`')
+    sys.stderr.write('This is a module. See commands with `vault -h`')
     sys.exit(1)

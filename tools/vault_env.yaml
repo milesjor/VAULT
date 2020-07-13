@@ -10,3 +10,5 @@ dependencies:
   - seqtk=1.3
   - cutadapt=2.7
   - sniffles=1.0.11
+  - numpy
+  - pandas

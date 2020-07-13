@@ -1,12 +1,12 @@
-#!/home/bic/anaconda3/envs/bioconda/bin/python
-#
+#!/usr/bin/env python3
 # Chongwei 20191203
-# Email: chongwei.bi@kaust.edu.sa
+# bicwei@gmail.com
 
 import argparse
 import os
 import subprocess
 import re
+import sys
 
 
 def get_argparse():
@@ -84,8 +84,7 @@ def get_name(args):
     return save_path, file_name
 
 
-def main():
-    args = get_argparse()
+def extract_main(args):
     [save_path, file_name] = get_name(args)
 
     print("\n-------------- received arguments -------------")
@@ -98,7 +97,10 @@ def main():
 
     pre_alignment(args, save_path, file_name)
     extract_reads_by_name(args, save_path, file_name)
+    print("\nextract mapped reads done!\n")
+    sys.exit(0)
 
 
 if __name__ == '__main__':
-    main()
+    args = get_argparse()
+    extract_main(args)

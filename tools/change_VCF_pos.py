@@ -1,11 +1,11 @@
-#!/home/bic/anaconda3/envs/bioconda/bin/python
-#
+#!/usr/bin/env python3
 # Chongwei 20191027
-# Email: chongwei.bi@kaust.edu.sa
+# bicwei@gmail.com
 
 import argparse
 import os
 import re
+import sys
 from operator import itemgetter
 
 
@@ -89,8 +89,7 @@ def correct_vcf(args):
             outfile2.writelines('\t'.join([record[0], str(record[1])] + list(record[2:])))
 
 
-def main():
-    args = get_argparse()
+def position_main(args):
     if not os.path.isdir(args.save_path):
         os.mkdir(args.save_path)
     print("\n-------------- received arguments -------------")
@@ -104,7 +103,10 @@ def main():
         args.vcf_file = reverse_coordinate(args)
 
     correct_vcf(args)
+    print("\nchange VCF file pos and chr done!\n")
+    sys.exit(0)
 
 
 if __name__ == '__main__':
-    main()
+    args = get_argparse()
+    position_main(args)

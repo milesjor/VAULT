@@ -1,5 +1,4 @@
-#!/home/bic/anaconda3/envs/bioconda/bin/python
-#
+#!/usr/bin/env python3
 # Chongwei 20191029
 # Email: chongwei.bi@kaust.edu.sa
 
@@ -13,7 +12,7 @@ def get_argparse():
     parser = argparse.ArgumentParser(description='This is for filtering sv.vcf by the proportion of reads supporting SVs')
     parser.add_argument('-s', '--save_path', type=str, default="./", help='path/to/save/')
     parser.add_argument('-v', '--vcf_file', type=validate_file, required=True, help='path/to/file.vcf')
-    parser.add_argument('-f', '--sv_percent', type=float, default="0.5", help='percentage of sv reads')
+    parser.add_argument('-f', '--sv_percent', type=float, default="0.5", help='percentage of sv reads [0.5]')
 
     return parser.parse_args()
 
@@ -65,6 +64,7 @@ def main():
     print("SV percentage :   %s" % args.sv_percent)
 
     filter_sv(args.vcf_file, args.save_path, args.sv_percent)
+    print("\n%s    ------------ Jobs done! ------------\n")
 
 
 if __name__ == '__main__':

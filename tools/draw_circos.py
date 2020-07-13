@@ -1,7 +1,6 @@
-#!/home/bic/anaconda3/envs/bioconda/bin/python
-#
+#!/usr/bin/env python3
 # Chongwei 20190930
-# Email: chongwei.bi@kaust.edu.sa
+# bicwei@gmail.com
 
 import numpy as np
 import pandas as pd
@@ -10,6 +9,7 @@ import os
 import re
 import io
 import sys
+import subprocess
 from operator import itemgetter
 
 
@@ -21,9 +21,13 @@ def get_argparse():
     parser.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
     parser.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
     parser.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
-    parser.add_argument('-g', '--genome', type=str, default='hchrM.F9.UMIs',
-                     choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'], help='the genome used in VAULT')
+    parser.add_argument('-g', '--genome', type=str,
+                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'],
+                        help='the genome used in VAULT')
     parser.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
+    parser.add_argument('-A', '--keep_1alt', action='store_true',
+                        help='leave only 1 Alt in vcf file for helping SNV annotation')
+    parser.add_argument('--depth_pos', type=validate_file, help='change the position of depth file')
 
     args = parser.parse_args()
     if args.genome == 'mmt_nod_F6_10N_to_C57':
@@ -32,6 +36,8 @@ def get_argparse():
         args.chr_name = 'chrM'
     elif args.genome == 'hchrM.F6.UMIs':
         args.chr_name = 'chrM'
+    elif args.genome == 'mmt_c57_F6_10N':
+        args.chr_name = 'chrMT'
 
     return args
 
@@ -109,7 +115,7 @@ def correct_vcf(args):
                         new_line.append(line)
 
                     else:
-                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+                        print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
 
                 elif genome_used == 'hchrM.F9.UMIs':
                     if 38 <= pos <= 13307:
@@ -125,7 +131,7 @@ def correct_vcf(args):
                         new_line.append(line)
 
                     else:
-                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+                        print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
 
                 elif genome_used == 'hchrM.F6.UMIs':
                     if 39 <= pos <= 1748:
@@ -141,7 +147,7 @@ def correct_vcf(args):
                         new_line.append(line)
 
                     else:
-                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+                        print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
 
                 elif genome_used == 'mmt_c57_F6_10N':
                     if 41 <= pos <= 1599:
@@ -157,15 +163,96 @@ def correct_vcf(args):
                         new_line.append(line)
 
                     else:
-                        print("\nWrong position: \n%s\n" % '\t'.join(line))
+                        print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
 
                 else:
-                    sys.stderr.write('There is no preset parameter for changing chromosome position!')
+                    sys.stderr.write('ERROR!  There is no preset parameter for changing chromosome position!')
                     sys.exit(1)
 
         new_line.sort(key=itemgetter(1), reverse=False)
         for record in new_line:
             outfile2.writelines('\t'.join([record[0], str(record[1])] + list(record[2:])))
+
+
+def correct_depth(args):
+    depth_file = args.depth_pos
+    file_name = re.split(r'/', depth_file)[-1]
+    file_name = re.split(r'.txt', file_name)[0]
+    save_file = args.save_path + '/' + file_name + '.correct.txt'
+    save_file2 = args.save_path + '/' + file_name + '.correct.sorted.txt'
+    genome_used = args.genome
+
+    with open(depth_file, 'r') as infile, open(save_file, 'w') as outfile1, open(save_file2, 'w') as outfile2:
+        new_line = []
+
+        def write_line(line, pos):
+            outfile1.writelines('\t'.join((line[0], str(pos), str(line[2]))))
+            line = tuple([line[0], pos, line[2]])
+            new_line.append(line)
+
+        for line in infile:
+            line = re.split(r'\t', line)
+            pos = int(line[1])
+            # below is for mmt_nod_F6_10N.fa to mouse C57 genome
+            if genome_used == 'mmt_nod_F6_10N_to_C57':
+                if 41 <= pos <= 1599:
+                    pos = pos + 14700
+                    write_line(line, pos)
+
+                elif 1599 < pos <= 11427:
+                    pos = pos - 1599
+                    write_line(line, pos)
+
+                elif pos > 11427:
+                    pos = pos - 1601
+                    write_line(line, pos)
+
+                else:
+                    print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+            elif genome_used == 'hchrM.F9.UMIs':
+                if 38 <= pos <= 13307:
+                    pos = pos + 3262
+                    write_line(line, pos)
+
+                elif pos > 13307:
+                    pos = pos - 13307
+                    write_line(line, pos)
+
+                else:
+                    print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+            elif genome_used == 'hchrM.F6.UMIs':
+                if 39 <= pos <= 1748:
+                    pos = pos + 14821
+                    write_line(line, pos)
+
+                elif pos > 1748:
+                    pos = pos - 1748
+                    write_line(line, pos)
+
+                else:
+                    print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+            elif genome_used == 'mmt_c57_F6_10N':
+                if 41 <= pos <= 1599:
+                    pos = pos + 14700
+                    write_line(line, pos)
+
+                elif pos > 1599:
+                    pos = pos - 1599
+                    write_line(line, pos)
+
+                else:
+                    print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+            else:
+                sys.stderr.write('ERROR!  There is no preset parameter for changing chromosome position!')
+                sys.exit(1)
+
+        new_line.sort(key=itemgetter(1), reverse=False)
+        for record in new_line:
+            outfile2.writelines('\t'.join([record[0], str(record[1]), str(record[2])]))
 
 
 def vcf_circos(args):
@@ -230,8 +317,73 @@ def count_to_freq(args):
             outfile.writelines(new_line2)
 
 
-def main():
-    args = get_argparse()
+def snv_load_per_group(args):
+    snv_file = args.save_path + '/' + args.name + '_correct.pos.sorted.snv.vcf'
+    coverage_file = args.save_path + '/coverage.3plus.txt'
+    snv_load_distribution = args.save_path + '/' + args.name + '_snv_load_distribution.txt'
+
+    with open(coverage_file, 'r') as infile1, open(snv_load_distribution, 'w') as outfile:
+        dir = {}
+        for line in infile1:
+            k, v = line.strip().split(' ')
+            dir[k.strip()] = v.strip()
+
+        awk = """awk '{print $1,$2}' """
+        snv_count = args.save_path + '/snv.count.per.group.txt'
+        cmd = """cat {snv_file} | grep -v "^#" | cut -f3 | sort | uniq -c | {awk} > {snv_count} 
+                """.format(snv_file=snv_file, awk=awk, snv_count=snv_count)
+        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+
+        with open(snv_count, 'r') as infile2:
+            for line2 in infile2:
+                line2_split = line2.split(' ')
+                group_name = line2_split[1].strip()
+                snv_number = line2_split[0].strip()
+                coverage = dir[group_name]
+                load = round(int(snv_number) / int(coverage), 6)
+                new_line = " ".join((group_name, str(snv_number), str(coverage), str(load))) + '\n'
+                outfile.writelines(new_line)
+
+
+def rem_mlt_alt(args):
+    vcf = args.vcf_file
+    file_name = re.split(r'/', vcf)[-1]
+    file_name = re.split(r'.vcf', file_name)[0]
+    outvcf = args.save_path + '/' + file_name + '.1alt.vcf'
+    with open(vcf, 'r') as infile, open(outvcf, 'w') as outfile:
+        for line in infile:
+            if line.startswith('#'):
+                # pass
+                outfile.writelines(line)
+            else:
+                # oldline = line
+                line = re.split(r'\t', line)
+                alt = line[4]
+                info = line[7]
+                last_field = line[9]
+                pl = re.split(r':', last_field)[1]
+                gt_pl = '1:' + str(re.split(r',', pl)[0]) + ',0\n'
+
+                if ',' in alt:
+                    alt = re.split(r',', alt)[0]
+                    # print(info)
+                    info = re.split(r'AC=|;AN=', info)
+                    info_1 = info[0]
+                    info_2 = info[2:]
+                    ac = info[1].split(',')[0]
+                    info = str(info_1) + 'AC=' + str(ac) + ';AN=' + str(''.join(info_2))
+                    # print(info)
+                    newline = '\t'.join(line[0:4] + [alt] + line[5:7] + [info] + [line[8]] + [gt_pl])
+                    # print(oldline)
+                    # print(newline)
+                    outfile.writelines(newline)
+
+                else:
+                    newline = '\t'.join(line[0:9] + [gt_pl])
+                    outfile.writelines(newline)
+
+
+def circos_main(args):
     if not os.path.isdir(args.save_path):
         os.mkdir(args.save_path)
     print("\n-------------- received arguments -------------")
@@ -245,10 +397,20 @@ def main():
     if os.path.exists(str(args.vcf_file)):
         print("vcf file:      %s" % args.vcf_file)
         print("used genome:   %s\n" % args.genome)
-        correct_vcf(args)
-        vcf_circos(args)
-        count_to_freq(args)
+        if args.keep_1alt is True:
+            rem_mlt_alt(args)
+        else:
+            correct_vcf(args)
+            vcf_circos(args)
+            count_to_freq(args)
+            snv_load_per_group(args)
+    print("\n%s    ------------ Jobs done! ------------\n")
+    sys.exit(0)
 
 
 if __name__ == '__main__':
-    main()
+    args = get_argparse()
+    if args.depth_pos is not None:
+        correct_depth(args)
+    else:
+        circos_main(args)

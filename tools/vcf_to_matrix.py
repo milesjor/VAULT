@@ -4,8 +4,8 @@ import pandas as pd
 
 
 def vcf_to_matrix():
-    vcf = "/Users/bic/Desktop/mtseq_paper_data/mutation_95p/293T_nanopore.vcf"
-    out_file = "/Users/bic/Desktop/mtseq_paper_data/mutation_95p/heatmap/293T_nanopore.snv.pos.matrix.txt"
+    vcf = "/Users/bic/Desktop/mtseq_paper_data/mutation_95p/b6-3.less0.01.vcf"
+    out_file = "/Users/bic/Desktop/mtseq_paper_data/mutation_95p/headmap_lowvaf/b6-3.less0.01.snv.pos.matrix.txt"
 
     def read_vcf(path):
         with open(path, 'r') as f:

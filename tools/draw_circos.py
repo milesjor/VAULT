@@ -404,7 +404,7 @@ def circos_main(args):
             vcf_circos(args)
             count_to_freq(args)
             snv_load_per_group(args)
-    print("\n%s    ------------ Jobs done! ------------\n")
+    print("\n------------ Jobs done! ------------\n")
     sys.exit(0)
 
 

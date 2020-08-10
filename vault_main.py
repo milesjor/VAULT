@@ -137,6 +137,7 @@ def analyze_umi(args):
         index = [x for x in range(adapt.find(search), len(adapt)) if adapt[x] == search]
         return index
 
+    args.umi_adapter = args.umi_adapter.upper()
     n_index = find_all_index(args.umi_adapter)
     left_flank = args.umi_adapter[0:n_index[0]]
     right_flank = args.umi_adapter[n_index[-1]+1:]

@@ -5,6 +5,7 @@ VAULT is a tool for analyzing UMI-labeled reads, works for both error-prone long
 <p align="center">
 <img src="https://github.com/milesjor/VAULT/blob/master/example/pic/compare.png" width="600"/>
 </p>
+
 More detail: [Long-read Individual-molecule Sequencing Reveals CRISPR-induced Genetic Heterogeneity in Human ESCs](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02143-8)
 
 ## INSTALLATION
@@ -38,6 +39,7 @@ source ~/.bashrc
 <p align="center">
 <img src="https://github.com/milesjor/VAULT/blob/master/example/pic/vault_pipeline.png" width="600"/>
 </p>
+
 ### The parameters of VAULT
 Users can use the following command to print out the full usage:
 ```

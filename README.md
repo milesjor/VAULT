@@ -2,8 +2,10 @@
  Variant Analysis with UMI for Long-read Technology (VAULT)
 
 VAULT is a tool for analyzing UMI-labeled reads, works for both error-prone long reads and accurate single-end/paired-end short reads.
-
-More detail: [Long-read Individual-molecule Sequencing Reveals CRISPR-induced Genetic Heterogeneity in Human ESCs](https://www.biorxiv.org/content/10.1101/2020.02.10.942151v1)
+<p align="center">
+<img src="https://github.com/milesjor/VAULT/blob/master/example/pic/compare.png" width="600"/>
+</p>
+More detail: [Long-read Individual-molecule Sequencing Reveals CRISPR-induced Genetic Heterogeneity in Human ESCs](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02143-8)
 
 ## INSTALLATION
 ### Prerequisites
@@ -33,7 +35,9 @@ source ~/.bashrc
 ```
 
 ## USAGE
-
+<p align="center">
+<img src="https://github.com/milesjor/VAULT/blob/master/example/pic/vault_pipeline.png" width="600"/>
+</p>
 ### The parameters of VAULT
 Users can use the following command to print out the full usage:
 ```
@@ -46,10 +50,11 @@ vault -h
 
 A list of available parameters:
 ```
-usage: vault [-h] [-v] [-u UMI_ADAPTER] [-s SAVE_PATH] [-r REFER]
-             [-q FASTQ] [-e ERROR] [-t THREAD] [-T THRESHOLD]
-             [-b BASH_THREAD] [-F ALLELE_FREQ] [-p PE_FASTQ]
-             [-a {sr,map-ont,map-pb}] [--unmapped_reads] [--group_filter]
+usage: vault [-h] [-v] [-u UMI_ADAPTER] [-s SAVE_PATH] [-r REFER] [-q FASTQ]
+             [-e ERROR] [-t THREAD] [-T THRESHOLD] [-b BASH_THREAD]
+             [-F ALLELE_FREQ] [-f SV_FREQ] [-p PE_FASTQ]
+             [-a {sr,map-ont,map-pb}] [--minlength MINLENGTH]
+             [--maxlength MAXLENGTH] [--unmapped_reads] [--group_filter]
              {consensus,position,circos,filter} ...
 
 This is for analyzing UMI labeled reads in IDMseq and IMTseq.
@@ -95,6 +100,12 @@ Optional options:
   -a {sr,map-ont,map-pb}, --align_mode {sr,map-ont,map-pb}
                         parameter in alignment, minimap2 -ax [sr|map-ont|map-
                         pb]
+  --minlength MINLENGTH
+                        filter fastq file to remove reads with length less
+                        than [int]
+  --maxlength MAXLENGTH
+                        filter fastq file to remove reads with length more
+                        than [int]
   --unmapped_reads      extract mapped reads before UMI analysis  
   --group_filter        filter out low-confidence UMI groups      
 ```
@@ -109,6 +120,8 @@ Optional options:
         -r ./example/reference.fa \
         -e 0.11 \
         -a map-ont \
+        --minlength 300 \
+        --maxlength 20000 \
         --unmapped_reads \
         --group_filter \
         -t 4 \

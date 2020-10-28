@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # Chongwei 20190930
 # bicwei@gmail.com
-
 import numpy as np
 import pandas as pd
 import argparse
@@ -16,29 +15,22 @@ from operator import itemgetter
 def get_argparse():
     parser = argparse.ArgumentParser(description='This is for preparing data for circos. For vcf file, it will correct position and remove indel.'
                                                  'For depth file, it will bin the depeth file based on user defined bin size')
-    parser.add_argument('-n', '--name', type=str, default="circos", help='prefix of output file')
+    parser.add_argument('-n', '--name', type=str, default="circos", help='prefix of output file [circos]')
     parser.add_argument('-d', '--depth_file', type=validate_file, help='depth file from samtools depth')
     parser.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
     parser.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
-    parser.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
+    parser.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin [30]')
     parser.add_argument('-g', '--genome', type=str,
-                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'],
+                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'hchrM.bamh1.UMIs', 'mmt_c57_F6_10N'],
                         help='the genome used in VAULT')
-    parser.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
+    parser.add_argument('-c', '--chr_name', type=str,
+                        help='chromosome name showed in vcf file, '
+                             'when providing -g, -c will be set automatically as [chrM] for human and [chrMT] for mouse')
     parser.add_argument('-A', '--keep_1alt', action='store_true',
                         help='leave only 1 Alt in vcf file for helping SNV annotation')
     parser.add_argument('--depth_pos', type=validate_file, help='change the position of depth file')
 
     args = parser.parse_args()
-    if args.genome == 'mmt_nod_F6_10N_to_C57':
-        args.chr_name = 'chrMT'
-    elif args.genome == 'hchrM.F9.UMIs':
-        args.chr_name = 'chrM'
-    elif args.genome == 'hchrM.F6.UMIs':
-        args.chr_name = 'chrM'
-    elif args.genome == 'mmt_c57_F6_10N':
-        args.chr_name = 'chrMT'
-
     return args
 
 
@@ -118,6 +110,7 @@ def correct_vcf(args):
                         print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
 
                 elif genome_used == 'hchrM.F9.UMIs':
+                    # print(line)
                     if 38 <= pos <= 13307:
                         pos = pos + 3262
                         outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
@@ -126,6 +119,23 @@ def correct_vcf(args):
 
                     elif 13307 < pos <= 16571:
                         pos = pos - 13307
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    else:
+                        print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+                elif genome_used == 'hchrM.bamh1.UMIs':
+                    # print(line)
+                    if 38 <= pos <= 2344:
+                        pos = pos + 14225
+                        outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
+                        line = tuple([chr_name, pos] + line[2:])
+                        new_line.append(line)
+
+                    elif 2344 < pos <= 16579:
+                        pos = pos - 2344
                         outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
                         line = tuple([chr_name, pos] + line[2:])
                         new_line.append(line)
@@ -217,6 +227,18 @@ def correct_depth(args):
 
                 elif pos > 13307:
                     pos = pos - 13307
+                    write_line(line, pos)
+
+                else:
+                    print("WARNING!  Wrong position: %s" % '\t'.join(line).strip())
+
+            elif genome_used == 'hchrM.bamh1.UMIs':
+                if 38 <= pos <= 2344:
+                    pos = pos + 14225
+                    write_line(line, pos)
+
+                elif pos > 2344:
+                    pos = pos - 2344
                     write_line(line, pos)
 
                 else:
@@ -400,10 +422,31 @@ def circos_main(args):
         if args.keep_1alt is True:
             rem_mlt_alt(args)
         else:
+            if args.chr_name is None:
+                if args.genome == 'mmt_nod_F6_10N_to_C57':
+                    args.chr_name = 'chrMT'
+                elif args.genome == 'hchrM.F9.UMIs':
+                    args.chr_name = 'chrM'
+                elif args.genome == 'hchrM.F6.UMIs':
+                    args.chr_name = 'chrM'
+                elif args.genome == 'hchrM.bamh1.UMIs':
+                    args.chr_name = 'chrM'
+                elif args.genome == 'mmt_c57_F6_10N':
+                    args.chr_name = 'chrMT'
+                else:
+                    sys.stderr.write('ERROR!  please provide -c chr_name, or -g genome \n')
+                    sys.exit(1)
+
             correct_vcf(args)
             vcf_circos(args)
-            count_to_freq(args)
-            snv_load_per_group(args)
+
+            coverage_file = args.save_path + '/all.coverage.3plus.correct.pos.txt'
+            if os.path.exists(str(coverage_file)):
+                count_to_freq(args)
+                snv_load_per_group(args)
+            else:
+                print("WARNING!  Do not exist coverage file: all.coverage.3plus.correct.pos.txt\n"
+                      "WARNING!  Skip calculating VAF per SNV and SNV load per mtDNA")
     print("\n------------ Jobs done! ------------\n")
     sys.exit(0)
 

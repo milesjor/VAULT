@@ -13,11 +13,12 @@ import sys
 from datetime import datetime
 from _version import vault_version
 from tools import extract_mapped_reads, filter_sv, umi_group_filter, call_consensus, change_VCF_pos, draw_circos
+from tools import read_length_filter
 from variants_calling import snp_calling, sv_calling
 
 
 def get_argparse():
-    args = argparse.ArgumentParser(description='This is for analyzing UMI labeled reads in IDMseq and IMTseq.',
+    args = argparse.ArgumentParser(description='This is for analyzing UMI labeled reads in IDMseq and iMiGseq.',
                                    epilog='Refer github https://github.com/milesjor/VAULT for more detail')
     subparsers = args.add_subparsers(title='subcommands',
                                      description='valid subcommands',
@@ -44,6 +45,10 @@ def get_argparse():
     opt.add_argument('-a', '--align_mode', type=str, default='map-ont',
                      choices=['sr', 'map-ont', 'map-pb'], help='parameter in alignment, '
                                                                'minimap2 -ax [sr|map-ont|map-pb]')
+    opt.add_argument('--minlength', type=int, default='0',
+                     help='filter fastq file to remove reads with length less than [int]')
+    opt.add_argument('--maxlength', type=int, default='0',
+                     help='filter fastq file to remove reads with length more than [int]')
     opt.add_argument('--unmapped_reads', action='store_true', help='extract mapped reads before UMI analysis')
     opt.add_argument('--group_filter', action='store_true', help='filter out low-confidence UMI groups')
 
@@ -53,7 +58,7 @@ def get_argparse():
                                       description='This is for generating consensus sequence from VAULT result '
                                                   'using canu + medaka. '
                                                   'Just input the path of VAULT result folder '
-                                                  '--> the folder containing (/snp /grouped_reads /umi_analysis). ')
+                                                  '--> the folder of vault -s (containing ./snp ./grouped_reads ./umi_analysis). ')
     consensus.set_defaults(func=call_consensus.consensus_main)
     consensus.add_argument('-s', '--save_path', type=str, required=True, help='path/to/VAULT_result_folder/')
     consensus.add_argument('-t', '--thread', type=int, default='6', help='parallel worker [6]')
@@ -76,21 +81,24 @@ def get_argparse():
     position.add_argument('-s', '--save_path', type=str, default="./", help='path/to/save/')
 
     circos = subparsers.add_parser('circos',
-                                   help='prepare data for circos, used in IMTseq',
-                                   description='This is for preparing data for circos. It is used in IMTseq. '
+                                   help='prepare data for circos, used in iMiGseq',
+                                   description='This is for preparing data for circos. It is used in iMiGseq. '
                                                'For vcf file, it will correct position and remove indel. '
                                                'For depth file, it will bin depth based on '
                                                'user defined bin size.')
     circos.set_defaults(func=draw_circos.circos_main)
-    circos.add_argument('-n', '--name', type=str, default="circos", help='prefix of output file')
+    circos.add_argument('-n', '--name', type=str, default="circos", help='prefix of output file [circos]')
     circos.add_argument('-d', '--depth_file', type=validate_file, help='depth file from samtools depth')
     circos.add_argument('-s', '--save_path', type=str, required=True, help='path/to/save/')
     circos.add_argument('-v', '--vcf_file', type=validate_file, help='path/to/file.vcf')
-    circos.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin')
+    circos.add_argument('-b', '--bin_size', type=int, default="30", help='how many bases per bin [30]')
     circos.add_argument('-g', '--genome', type=str,
-                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'mmt_c57_F6_10N'],
+                        choices=['mmt_nod_F6_10N_to_C57', 'hchrM.F9.UMIs', 'hchrM.F6.UMIs', 'hchrM.bamh1.UMIs',
+                                 'mmt_c57_F6_10N'],
                         help='the genome used in VAULT')
-    circos.add_argument('-c', '--chr_name', type=str, help='chromosome name showed in vcf file')
+    circos.add_argument('-c', '--chr_name', type=str,
+                        help='chromosome name showed in vcf file, '
+                             'when providing -g, -c will be set automatically as [chrM] for human and [chrMT] for mouse')
     circos.add_argument('-A', '--keep_1alt', action='store_true',
                         help='leave only 1 Alt in vcf file for helping SNV annotation')
 
@@ -115,9 +123,10 @@ def get_argparse():
         if args.umi_adapter is None or args.save_path is None or args.refer is None or args.fastq is None:
             sys.stderr.write("usage: vault [-h] [-v] -u UMI_ADAPTER -s SAVE_PATH -r REFER -q FASTQ\n"
                              "             [-e ERROR] [-t THREAD] [-T THRESHOLD] [-b BASH_THREAD]\n"
-                             "             [-F ALLELE_FREQ] [-f SV_FREQ] [-a {sr,map-ont,map-pb}]\n"
-                             "             [-p PE_FASTQ] [--unmapped_reads] [--group_filter]\n"
-                             "             {consensus} ...\n"
+                             "             [-F ALLELE_FREQ] [-f SV_FREQ] [-p PE_FASTQ]\n"
+                             "             [-a {sr,map-ont,map-pb}] [--minlength MINLENGTH]\n"
+                             "             [--maxlength MAXLENGTH] [--unmapped_reads] [--group_filter]\n"
+                             "             {consensus,position,circos,filter} ...\n"
                              "vault: error: the following arguments are required: "
                              "-u/--umi_adapter, -s/--save_path, -r/--refer, -q/--fastq\n")
             sys.exit(1)
@@ -583,9 +592,22 @@ def main():
     print("refer file:    ", args.refer)
     print("error rate:    ", args.error)
     print("align mode:    ", args.align_mode)
+    print("thread:        ", args.thread)
     print("save path:      %s\n" % args.save_path)
 
+    if args.minlength != 0 or args.maxlength != 0:
+        if args.maxlength == 0:
+            print("%s    Start filtering reads by length >= %d ..."
+                  % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.minlength))
+        else:
+            print("%s    Start filtering reads by length %d - %d ..."
+                  % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.minlength, args.maxlength))
+
+        [save_path, file_name] = extract_mapped_reads.get_name(args)
+        args.fastq = read_length_filter.filter_length(args.fastq, args.minlength, args.maxlength, save_path, file_name)
+
     if args.unmapped_reads is True:
+        print("%s    Start extracting mapped reads ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         [save_path, file_name] = extract_mapped_reads.get_name(args)
         extract_mapped_reads.pre_alignment(args, save_path, file_name)
         extract_mapped_reads.extract_reads_by_name(args, save_path, file_name)

@@ -69,13 +69,13 @@ def correct_vcf(args):
                 line = re.split(r'\t', line)
                 pos = int(line[1])
 
-                if pos_change_by is "+":
+                if pos_change_by == "+":
                     pos = pos + pos_change_value
                     outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
                     line = tuple([chr_name, pos] + line[2:])
                     new_line.append(line)
 
-                elif pos_change_by is "-":
+                elif pos_change_by == "-":
                     pos = pos - pos_change_value
                     outfile1.writelines('\t'.join((chr_name, str(pos), '\t'.join(line[2:]))))
                     line = tuple([chr_name, pos] + line[2:])

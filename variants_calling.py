@@ -17,8 +17,16 @@ Disable read-pair overlap detection.
 
 def snp_calling(save, thread, ax, refer, fastq, name):
     count_number = """awk 'BEGIN{n=0}{if($3>=3)n+=1}END{print n}' """
+    awk_identity = """awk 'BEGIN{a=0;b=0}{a+=$10/$11;b++}END{print a/b}' """
     cmd = """# alignment
              minimap2 -t {thread} -a -x {ax} -Y --MD {refer} {fastq} > {save}/{name}.sv.sam 2>>{save}/{name}_alignment_summary.log
+             # ngmlr -t {thread} -i 0.8 -x ont -r {refer} -q {fastq} -o {save}/{name}.sv.sam 2>>{save}/{name}_alignment_summary.log
+             # minimap2 -t {thread} -a -x asm10 -Y --MD {refer} {fastq} > {save}/{name}.sv.sam 2>>{save}/{name}_alignment_summary.log
+             
+             # alignment identity
+             # minimap2 -t {thread} -x asm10 -Y --MD {refer} {fastq} > {save}/{name}.sv.paf 2>>{save}/{name}_alignment_summary.log
+             # cat {save}/{name}.sv.paf | {awk_identity} > {save}/{name}.sv.align_identity.txt
+             
              echo "====== Alignment summary ======" >> {save}/{name}_alignment_summary.log
              grep -v "^@" {save}/{name}.sv.sam | cut -f 3 | sort | uniq -c | sort -n >> {save}/{name}_alignment_summary.log
              echo "===============================" >> {save}/{name}_alignment_summary.log
@@ -30,7 +38,7 @@ def snp_calling(save, thread, ax, refer, fastq, name):
              bcftools norm --threads {thread} -Ou -f {refer} 2>>{save}/{name}_alignment_summary.log | \
              bcftools annotate --set-id ${name} -Ov 1> {save}/vcf/{name}.snp.vcf
              # bcftools filter -s LowQual -e '%QUAL<10 || INFO/DP<5 || INFO/IMF<0.5' > {save}/vcf/{name}.snp.vcf
-             samtools depth {save}/{name}.sv.sorted.bam > {save}/{name}.coverage.txt
+             samtools depth -d 0 {save}/{name}.sv.sorted.bam > {save}/{name}.coverage.txt
              cat {save}/{name}.coverage.txt | {count_number} | xargs echo {name} > {save}/{name}.coverage.3plus.txt
              """.format(save=save,
                         thread=thread,
@@ -38,7 +46,8 @@ def snp_calling(save, thread, ax, refer, fastq, name):
                         refer=refer,
                         fastq=fastq,
                         name=name,
-                        count_number=count_number)
+                        count_number=count_number,
+                        awk_identity=awk_identity)
 
     a = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if a.stdout != b'':
@@ -76,5 +85,5 @@ def sv_calling(save, thread, refer, fastq, name, map_mode='-x ont'):
 
 
 if __name__ == '__main__':
-    sys.stderr.write('This is a module. See commands with `vault -h`')
+    sys.stderr.write('ERROR! This is a module. See commands with `vault -h`')
     sys.exit(1)

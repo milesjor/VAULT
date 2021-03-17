@@ -440,6 +440,7 @@ def circos_main(args):
             correct_vcf(args)
             vcf_circos(args)
 
+            # check if the coverage file exist, if so, calculate VAF
             coverage_file = args.save_path + '/all.coverage.3plus.correct.pos.txt'
             if os.path.exists(str(coverage_file)):
                 count_to_freq(args)

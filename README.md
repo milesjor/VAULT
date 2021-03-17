@@ -57,9 +57,9 @@ usage: vault [-h] [-v] [-u UMI_ADAPTER] [-s SAVE_PATH] [-r REFER] [-q FASTQ]
              [-F ALLELE_FREQ] [-f SV_FREQ] [-p PE_FASTQ]
              [-a {sr,map-ont,map-pb}] [--minlength MINLENGTH]
              [--maxlength MAXLENGTH] [--unmapped_reads] [--group_filter]
-             {consensus,position,circos,filter} ...
+             {consensus,position,circos,filter,vaf} ...
 
-This is for analyzing UMI labeled reads in IDMseq and IMTseq.
+This is for analyzing UMI labeled reads in IDMseq and iMiGseq.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -68,12 +68,14 @@ optional arguments:
 subcommands:
   valid subcommands
 
-  {consensus,position,circos,filter}
+  {consensus,position,circos,filter,vaf}
                         additional help
     consensus           get consensus sequence from VAULT result
     position            correct the position and chr_name in vcf file
     circos              prepare data for circos, used in IMTseq
     filter              filter out low-confidence UMI groups
+    vaf                 calculate variant allele frequency (VAF) based on UMI
+                        group number
 
 Required options:
   -u UMI_ADAPTER, --umi_adapter UMI_ADAPTER
@@ -129,6 +131,8 @@ Optional options:
         -t 4 \
         -b 1
 ```
+#### Note:
+Input gzipped fastq/fasta file will significantly decrease the processing speed for large data set, as the extract read step for each UMI group will repeat unzipping the fastq file.
 
 ### Results
 ```
@@ -143,15 +147,15 @@ Optional options:
 │   └── perfect_umi
 ├── snp  # folder for variant analysis
 │   ├── all_snp_from_perfect_umi.vcf        # raw variant calling result for small variants
-│   ├── all_snp_from_perfect_umi.pcent.vcf  # add variant allelic frequency (supported reads percentage) in the info field of vcd file
+│   ├── all_snp_from_perfect_umi.pcent.vcf  # add variant allele frequency (supported reads percentage) in the info field of vcf file
 │   ├── all_snp_from_perfect_umi.pcent.rem.vcf              # remove wrong UMI group
-│   ├── all_snp_from_perfect_umi.pcent.rem.flt.vcf          # filter by depth, quality, allelic frequency
-│   ├── all_sv_from_perfect_umi.vcf         # raw variant calling result for large variants (>=30bp)
-│   ├── all_sv_from_perfect_umi.filtered.0.67.vcf           # FINAL SVs result (remove wrong UMI group and filter SVs by allelic frequency [0.67])
+│   ├── all_snp_from_perfect_umi.pcent.rem.flt.vcf          # filter by depth, quality, allele frequency
+│   ├── all_sv_from_perfect_umi.vcf         # raw variant calling result for large variants (>= 30bp)
+│   ├── all_sv_from_perfect_umi.filtered.0.67.vcf           # FINAL SV result (remove wrong UMI group and filter SVs by allele frequency [0.5])
 │   ├── all_sv_from_perfect_umi.filtered.0.67.sorted.vcf    # sort by position
 │   ├── coverage.3plus.txt                  # The region with coverage >= 3 in each UMI groups, can be used to filter out UMI groups
 │   ├── pass.group.lst                      # UMI groups that pass group_filter
-│   ├── pass_snp_from_perfect_umi.flt.vcf   # FINAL SNVs and indel result (remove wrong UMI group and filter by depth, quality, allelic frequency)
+│   ├── pass_snp_from_perfect_umi.flt.vcf   # FINAL SNV and InDel result (remove wrong UMI group and filter by depth, quality, allele frequency)
 │   ├── umi_group.flt.summary.txt           # intermediate file in [--group_filter]
 │   ├── wrong.group.lst                     # UMI groups that fail in [--group_filter]
 │   ├── wrong.group.summary.txt             # intermediate file in [--group_filter] for wrong UMI groups

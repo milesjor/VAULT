@@ -70,7 +70,7 @@ def add_pcent(save_path, outvcf):
                         total_var_reads += var_reads
                         total_ref_reads += ref_reads
 
-                    elif process_umi is '':
+                    elif process_umi == '':
                         process_umi = umi_name
                         record_count += 1
                         var_percent_list = [var_percent]

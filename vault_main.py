@@ -15,6 +15,7 @@ from datetime import datetime
 from tools import extract_mapped_reads, filter_sv, umi_group_filter, call_consensus, change_VCF_pos, draw_circos
 from tools import read_length_filter
 from variants_calling import snp_calling, sv_calling
+from check_umi2 import run_umi_analysis
 
 
 def validate_file(x):
@@ -42,7 +43,7 @@ def analyze_umi(args):
         os.mkdir(args.save_path)
 
     def run_bash_cmd(name, fastq, thread, end):
-        cmd = """sh {path}/check_umi.sh -n {name} -l {left_flank} -u {umi} -r {right_flank} \
+        cmd = """bash {path}/check_umi.sh -n {name} -l {left_flank} -u {umi} -r {right_flank} \
                  -q {fastq} -s {save} -e {error} -t {thread} -{end}""".format(path=sys.path[0],
                                                                               name=name,
                                                                               left_flank=left_flank,
@@ -58,16 +59,39 @@ def analyze_umi(args):
     py_threads = []
     if args.pe_fastq is None:
         thread = int(args.thread) // 2
-        t1 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(5)))
-        t2 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(3)))
+
+        if args.py_only is True:
+            t1 = threading.Thread(target=run_umi_analysis, args=("umi_analysis", args.fastq, thread, str(5),
+                                                                 "g", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+            t2 = threading.Thread(target=run_umi_analysis, args=("umi_analysis", args.fastq, thread, str(3),
+                                                                 "a", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+        else:
+            t1 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(5)))
+            t2 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(3)))
         py_threads.append(t1)
         py_threads.append(t2)
     else:
         thread = int(args.thread) // 4
-        t1 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(5)))
-        t2 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(3)))
-        t3 = threading.Thread(target=run_bash_cmd, args=("umi_analysis2", args.pe_fastq, thread, str(5)))
-        t4 = threading.Thread(target=run_bash_cmd, args=("umi_analysis2", args.pe_fastq, thread, str(3)))
+        if args.py_only is True:
+            t1 = threading.Thread(target=run_umi_analysis, args=("umi_analysis", args.fastq, thread, str(5),
+                                                                 "g", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+            t2 = threading.Thread(target=run_umi_analysis, args=("umi_analysis", args.fastq, thread, str(3),
+                                                                 "a", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+            t3 = threading.Thread(target=run_umi_analysis, args=("umi_analysis2", args.pe_fastq, thread, str(5),
+                                                                 "g", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+            t4 = threading.Thread(target=run_umi_analysis, args=("umi_analysis2", args.pe_fastq, thread, str(3),
+                                                                 "a", args.save_path, args.error, left_flank,
+                                                                 umi, right_flank))
+        else:
+            t1 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(5)))
+            t2 = threading.Thread(target=run_bash_cmd, args=("umi_analysis", args.fastq, thread, str(3)))
+            t3 = threading.Thread(target=run_bash_cmd, args=("umi_analysis2", args.pe_fastq, thread, str(5)))
+            t4 = threading.Thread(target=run_bash_cmd, args=("umi_analysis2", args.pe_fastq, thread, str(3)))
         py_threads.append(t1)
         py_threads.append(t2)
         py_threads.append(t3)

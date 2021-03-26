@@ -39,6 +39,7 @@ def get_argparse():
                      help='filter fastq file to remove reads with length more than [int]')
     opt.add_argument('--unmapped_reads', action='store_true', help='extract mapped reads before UMI analysis')
     opt.add_argument('--group_filter', action='store_true', help='filter out low-confidence UMI groups')
+    opt.add_argument('--py_only', action='store_true', help='use only python script in the umi analysis')
 
     # subcommands
     # get consensus sequence

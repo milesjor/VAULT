@@ -182,13 +182,13 @@ fi
     s="${s}/${n}/${umi_end}end_UMIs"   # Direction to save
 
     l=$(echo ${l} | tr [a-z] [A-Z])
-    lrev=$(echo ${l} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+    lrev=$(echo ${l} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
     u=$(echo ${u} | tr [a-z] [A-Z])
-    urev=$(echo ${u} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+    urev=$(echo ${u} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
     r=$(echo ${r} | tr [a-z] [A-Z])
-    rrev=$(echo ${r} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+    rrev=$(echo ${r} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
     umi="${l}${u}${r}"
-    umi_rev=$(echo ${umi} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+    umi_rev=$(echo ${umi} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
 
     if [[ "${umi_end}" -eq 3 ]];then
         umi=${umi_rev}

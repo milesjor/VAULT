@@ -29,13 +29,13 @@ def run_umi_analysis(name, fastq, thread, end, para, save, error, left, umi, rig
             mkdir {save}/{n}/{umi_end}end_UMIs
             s="{save}/{n}/{umi_end}end_UMIs"   # Direction to save
             left=$(echo {left} | tr [a-z] [A-Z])
-            lrev=$(echo {left} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+            lrev=$(echo {left} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
             u=$(echo {u} | tr [a-z] [A-Z])
-            urev=$(echo {u} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+            urev=$(echo {u} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
             right=$(echo {right} | tr [a-z] [A-Z])
-            rrev=$(echo {right} | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+            rrev=$(echo {right} | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
             umi="$left$u$right"
-            umi_rev=$(echo $umi | tr [a-z] [A-Z] | tr [ATGC] [TACG] | rev)
+            umi_rev=$(echo $umi | tr [a-z] [A-Z] | tr [ATGCBDHKMRSVWY] [TACGVHDMKYSBWR] | rev)
 
             if [[ "{umi_end}" -eq 3 ]];then
                 umi=$umi_rev

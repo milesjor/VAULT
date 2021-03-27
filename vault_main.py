@@ -155,11 +155,43 @@ def extract_name_lst(args):
 def lst2fastq_variant(args, umi_n5):
     umi_regex5 = '^' + umi_n5 + '$'
     umi_regex5 = re.sub('N', '[ATGC]', umi_regex5)
+    umi_regex5 = re.sub('B', '[GTC]', umi_regex5)
+    umi_regex5 = re.sub('D', '[GAT]', umi_regex5)
+    umi_regex5 = re.sub('H', '[ATC]', umi_regex5)
+    umi_regex5 = re.sub('K', '[GT]', umi_regex5)
+    umi_regex5 = re.sub('M', '[AC]', umi_regex5)
+    umi_regex5 = re.sub('R', '[AG]', umi_regex5)
+    umi_regex5 = re.sub('S', '[GC]', umi_regex5)
+    umi_regex5 = re.sub('V', '[AGC]', umi_regex5)
+    umi_regex5 = re.sub('W', '[AT]', umi_regex5)
+    umi_regex5 = re.sub('Y', '[CT]', umi_regex5)
 
     complement_dict = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     umi_n3 = "".join(complement_dict.get(base, base) for base in reversed(umi_n5))
     umi_regex3 = '^' + umi_n3 + '$'
+    # umi_regex3 = re.sub('N', '[ATGC]', umi_regex3)
+    # umi_regex3 = re.sub('B', '[GTC]', umi_regex3)
+    # umi_regex3 = re.sub('D', '[GAT]', umi_regex3)
+    # umi_regex3 = re.sub('H', '[ATC]', umi_regex3)
+    # umi_regex3 = re.sub('K', '[GT]', umi_regex3)
+    # umi_regex3 = re.sub('M', '[AC]', umi_regex3)
+    # umi_regex3 = re.sub('R', '[AG]', umi_regex3)
+    # umi_regex3 = re.sub('S', '[GC]', umi_regex3)
+    # umi_regex3 = re.sub('V', '[AGC]', umi_regex3)
+    # umi_regex3 = re.sub('W', '[AT]', umi_regex3)
+    # umi_regex3 = re.sub('Y', '[CT]', umi_regex3)
+
     umi_regex3 = re.sub('N', '[ATGC]', umi_regex3)
+    umi_regex3 = re.sub('B', '[CAG]', umi_regex3)
+    umi_regex3 = re.sub('D', '[CTA]', umi_regex3)
+    umi_regex3 = re.sub('H', '[TAG]', umi_regex3)
+    umi_regex3 = re.sub('K', '[CA]', umi_regex3)
+    umi_regex3 = re.sub('M', '[TG]', umi_regex3)
+    umi_regex3 = re.sub('R', '[TC]', umi_regex3)
+    umi_regex3 = re.sub('S', '[CG]', umi_regex3)
+    umi_regex3 = re.sub('V', '[TCG]', umi_regex3)
+    umi_regex3 = re.sub('W', '[TA]', umi_regex3)
+    umi_regex3 = re.sub('Y', '[GA]', umi_regex3)
 
     if args.pe_fastq is None:
         file5 = args.save_path + '/umi_analysis/5end_UMIs/umi_analysis.07.1read_count.2umi.3read_name.lst'

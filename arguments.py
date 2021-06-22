@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 from _version import vault_version
-from tools import umi_group_filter, call_consensus, change_VCF_pos, draw_circos, vaf_calculator
+from tools import umi_group_filter, call_consensus, change_VCF_pos, draw_circos, vaf_calculator, summarize_data
 
 
 def get_argparse():
@@ -42,6 +42,20 @@ def get_argparse():
     opt.add_argument('--py_only', action='store_true', help='use only python script in the umi analysis')
 
     # subcommands
+    # summarize the result
+    summarize = subparsers.add_parser('summarize',
+                                      help='summarize the result of VAULT',
+                                      description='This will generate several useful number to give an overview of the sequencing data')
+    summarize.set_defaults(func=summarize_data.summarize_main)
+    summarize.add_argument('-s', '--save_path', type=str, required=True, help='path/to/VAULT_result_folder/')
+    summarize.add_argument('-r', '--refer', type=validate_file, required=True,
+                           help='path/to/ref.fa, reference sequence in VAULT analysis')
+    summarize.add_argument('-q', '--fastq', type=validate_file, required=True,
+                           help='path/to/reads.fastq, raw sequencing reads analyzed by VAULT')
+    summarize.add_argument('-T', '--somatic_VAF', type=float, default='0.1', help='VAF threshold to define a somatic SNV')
+    summarize.add_argument('--unmapped_reads', action='store_true', help='use --unmapped_reads here if you used it in vault analysis')
+
+
     # get consensus sequence
     consensus = subparsers.add_parser('consensus',
                                       help='get consensus sequence from VAULT result',
@@ -117,7 +131,7 @@ def get_argparse():
     vaf.add_argument('-n', '--name', type=str, default='VAFcalculator', help='File name prefix [VAFcalculator]')
 
     args = args.parse_args()
-    if args.subcommands_name in ["consensus", "position", "circos", "filter", "vaf"]:
+    if args.subcommands_name in ["summarize", "consensus", "position", "circos", "filter", "vaf"]:
         args.func(args)
 
     else:
@@ -129,7 +143,7 @@ def get_argparse():
                              "             [-F ALLELE_FREQ] [-f SV_FREQ] [-p PE_FASTQ]\n"
                              "             [-a {sr,map-ont,map-pb}] [--minlength MINLENGTH]\n"
                              "             [--maxlength MAXLENGTH] [--unmapped_reads] [--group_filter]\n"
-                             "             {consensus,position,circos,filter,vaf} ...\n"
+                             "             {summarize,consensus,position,circos,filter,vaf} ...\n"
                              "vault: error: the following arguments are required: "
                              "-u/--umi_adapter, -s/--save_path, -r/--refer, -q/--fastq\n")
             sys.exit(1)

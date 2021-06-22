@@ -69,7 +69,7 @@ def get_name(args):
 
     split = re.split(r'/', args.fastq)
     file_name = split[-1]
-    file_name = re.split(r'.fastq', file_name)[0]
+    file_name = re.split(r'(.fastq|.fq|.fasta|.fa)', file_name)[0]
 
     if not save_path:
         if not split[1:]:

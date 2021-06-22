@@ -57,7 +57,7 @@ usage: vault [-h] [-v] [-u UMI_ADAPTER] [-s SAVE_PATH] [-r REFER] [-q FASTQ]
              [-F ALLELE_FREQ] [-f SV_FREQ] [-p PE_FASTQ]
              [-a {sr,map-ont,map-pb}] [--minlength MINLENGTH]
              [--maxlength MAXLENGTH] [--unmapped_reads] [--group_filter]
-             {consensus,position,circos,filter,vaf} ...
+             {summarize,consensus,position,circos,filter,vaf} ...
 
 This is for analyzing UMI labeled reads in IDMseq and iMiGseq.
 
@@ -131,18 +131,18 @@ Optional options:
         -t 4 \
         -b 1
 ```
-#### Note:
-Input gzipped fastq/fasta file will significantly decrease the processing speed for large data set, as the extract read step for each UMI group will repeat unzipping the fastq file.
 
 ### Results
 ```
 ./result/
-├── nanopore_reads_alignment_summary.log    # raw reads alignment summary
-├── nanopore_reads.bam
-├── nanopore_reads.bam.bai
-├── nanopore_reads.mapped.fastq             # reads that can map to reference
-├── nanopore_reads.mapped.lst
-├── nanopore_reads.sam
+├── 20210622_08.46.11_vault.log             # VAULT log
+├── nanopore_reads.300-20000_alignment_summary.log   # raw reads alignment summary
+├── nanopore_reads.300-20000.bam
+├── nanopore_reads.300-20000.bam.bai
+├── nanopore_reads.300-20000.fastq
+├── nanopore_reads.300-20000.mapped.fastq   # length filtered and alignment mapped reads used in the VAULT analysis
+├── nanopore_reads.300-20000.mapped.lst
+├── nanopore_reads.300-20000.sam
 ├── grouped_reads                           # fastq reads for every UMI groups
 │   └── perfect_umi
 ├── snp  # folder for variant analysis
@@ -211,3 +211,39 @@ The variant calling for each UMI group works in parallelism. One can modify the 
 
 ### --group_filter
 The UMI group filter will eliminate problematic UMI groups by surveying the read consistency within every UMI group. A UMI group is defined as a bin of reads with the same UMI. In theory, reads within the UMI group represent the same original molecule, thus exist the same sequence. However, the sequencing errors in UMI region will lead to a wrong separation of reads, which result in some UMI groups with reads from different molecules. A feature of such groups is, after SNV calling, they existed SNVs with various allelic frequencies. The UMI group filter analyzed the allelic frequencies of SNVs detected in every UMI group, and filter UMI groups based on variant read number, SNV number, and SNV allelic frequency. The filter will remove potentially problematic UMI groups to improve the confidence of final results, while sacrifice the number of usable UMI groups. Besides, there is no guarantee that all problematic UMI groups will be removed. Our in-house test showed that the UMI group filter will remove 10% to 40% UMI groups for different data sets. The repeatability of results was improved in random read sampling experiments with ***--group_filter***.
+
+### Generate a summary of the analysis
+Try the below command to generate a summary of the run, it includes several useful number as shown below. Please use the same parameters as the previous vault analysis. You can find your previous vault command in ***./example/result/date_time_vault.log***
+> vault summarize -q ./example/nanopore_reads.fastq.gz -s ./example/result -r ./example/reference.fa --unmapped_reads -T 0.1
+
+Output:
+```
+raw_read_number is: 252
+used_read_number is: 246
+reads_with_umi is: 246
+detected_molecule_number is: 24          # detected UMI groups(molecule)
+detected_passed_molecule_number is: 22   # filtered-passed UMI groups(molecule)
+refer_seq_length is: 7077
+covered_region_of_molecule(avg,median,min,max) is: 5842.41,6895.5,1582,7077   # length of regions with >=3 depth in each UMI group
+p95_coverage_molecule is: 13             # UMI groups(molecule) with more than 95% of regions covered by >=3 depth
+molecule_with_snv is: 17
+total_snv_number is: 64
+unique_snv_number is: 15
+snv_number_per_molecule(avg,median,min,max) is: 4.00683,4.04804,1.00493,9.00194
+total_somatic_snv_number is: 5           # somatic SNV is defined as SNVs with VAF < $threshold (defined by -T)
+unique_somatic_snv_number is: 5
+somatic_snv_load_per_Mbp is: 38.9005
+molecule_with_sv is: 16
+total_sv_number is: 32
+unique_sv_number is: 13
+molecule_with_deletion is: 15		 # Below shows only deletion, insertion, inversion and duplication. For more information of SVs, please check ./example/result/snp/summary/all_sv.1count.2pos.3type.4length.txt
+total_deletion is: 30
+molecule_with_insertion is: 1
+total_insertion is: 2
+molecule_with_inversion is: 0
+total_inversion is: 0
+molecule_with_duplication is: 0
+total_duplication is: 0
+```
+
+

@@ -16,6 +16,7 @@ from tools import extract_mapped_reads, filter_sv, umi_group_filter, call_consen
 from tools import read_length_filter
 from variants_calling import snp_calling, sv_calling
 from check_umi2 import run_umi_analysis
+import logging
 
 
 def validate_file(x):
@@ -35,9 +36,9 @@ def analyze_umi(args):
     left_flank = args.umi_adapter[0:n_index[0]]
     right_flank = args.umi_adapter[n_index[-1]+1:]
     umi = args.umi_adapter[n_index[0]:n_index[-1]+1]
-    print("left_flank:  ", left_flank)
-    print("umi:         ", umi)
-    print("right_flank:  %s" % right_flank)
+    logging.info("left_flank:   %s" % left_flank)
+    logging.info("umi:          %s" % umi)
+    logging.info("right_flank:  %s" % right_flank)
 
     if not os.path.isdir(args.save_path):
         os.mkdir(args.save_path)
@@ -223,7 +224,7 @@ def lst2fastq_variant(args, umi_n5):
                                                 args.refer, args.bash_thread, args.align_mode, args.pe_fastq))
     p.close()
     p.join()
-    print("%s    5'+3' and 5' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("%s    5'+3' and 5' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     # multiprocessing module for processing unused 3' end umi, and extract reads, and analyze snp
     if args.pe_fastq is None:
@@ -237,7 +238,7 @@ def lst2fastq_variant(args, umi_n5):
                                                     args.refer, args.bash_thread, args.align_mode, args.pe_fastq, name_lst3))
         p.close()
         p.join()
-        print("%s    The rest 3' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        logging.info("%s    The rest 3' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def use_class_5end(a, b, c, d, e, f, g, h, i, j=''):
@@ -357,7 +358,7 @@ class ProcessUmi:
                     self.lst2fastq_snp(read_count, umi_name, name_lst, read_folder, snp_folder)
 
             elif len(glob.glob(str(name_lst3))) > 1:
-                print("\n!!!!!! multiple match for read_name.lst file: %s!!!!!!\n" % name_lst3)
+                logging.info("\n!!!!!! multiple match for read_name.lst file: %s!!!!!!\n" % name_lst3)
                 if int(self.count) >= int(self.threshold):
                     read_folder = folder + '/only_5end/'
                     snp_folder = '/snp/' + folder
@@ -523,30 +524,68 @@ def check_tools():
 def main():
     args = arguments.get_argparse()
     check_tools()
-    print("\n%s    --------- received arguments ---------" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    print("umi adapter:   ", args.umi_adapter)
-    print("fastq file:    ", args.fastq)
+
+    if not os.path.isdir(args.save_path):
+        os.mkdir(args.save_path)
+
+    ctime = datetime.now().strftime("%Y%m%d_%H.%M.%S")
+    log_file = args.save_path + '/' + ctime + '_vault.log'
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(message)s',
+                        filename=log_file,
+                        filemode='w')
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+    logging.info(" ".join(sys.argv))
+    logging.info("\n%s    --------- received arguments ---------" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("umi adapter:    %s" % args.umi_adapter)
+    logging.info("fastq file:     %s" % args.fastq)
     if args.pe_fastq is not None:
-        print("read2 file:    ", args.pe_fastq)
-    print("refer file:    ", args.refer)
-    print("error rate:    ", args.error)
-    print("align mode:    ", args.align_mode)
-    print("thread:        ", args.thread)
-    print("save path:      %s\n" % args.save_path)
+        logging.info("read2 file:    %s" % args.pe_fastq)
+    logging.info("refer file:     %s" % args.refer)
+    logging.info("error rate:     %s" % args.error)
+    logging.info("align mode:     %s" % args.align_mode)
+    logging.info("thread:         %s" % args.thread)
+    logging.info("save path:      %s\n" % args.save_path)
+
+    fastq_gzip = ""
+    pe_fastq_gzip = ""
+    tmp_fastq = ""
+    tmp_pe_fastq = ""
+    if args.fastq.split(".")[-1] == "gz":
+        cmd = """gunzip -k {fastq}""".format(fastq=args.fastq)
+        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+        args.fastq = ".".join(args.fastq.split(".")[:-1])
+        tmp_fastq = args.fastq
+        fastq_gzip = True
+
+    if args.pe_fastq is not None:
+        if args.pe_fastq.split(".")[-1] == "gz":
+            cmd = """gunzip -k {fastq}""".format(fastq=args.pe_fastq)
+            subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+            args.pe_fastq = ".".join(args.pe_fastq.split(".")[:-1])
+            tmp_pe_fastq = args.pe_fastq
+            pe_fastq_gzip = True
 
     if args.minlength != 0 or args.maxlength != 0:
+        if args.pe_fastq is not None:
+            logging.info("ERROR! Pair-end fastq file provided: %s" % args.refer)
+            logging.info("ERROR! NO NEED for read length filter for short reads!")
+            logging.info("ERROR! Please run without --minlength and --maxlength")
+            sys.exit(1)
+
         if args.maxlength == 0:
-            print("%s    Start filtering reads by length >= %d ..."
+            logging.info("%s    Start filtering reads by length >= %d ..."
                   % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.minlength))
         else:
-            print("%s    Start filtering reads by length %d - %d ..."
+            logging.info("%s    Start filtering reads by length %d - %d ..."
                   % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.minlength, args.maxlength))
 
         [save_path, file_name] = extract_mapped_reads.get_name(args)
         args.fastq = read_length_filter.filter_length(args.fastq, args.minlength, args.maxlength, save_path, file_name)
 
     if args.unmapped_reads is True:
-        print("%s    Start extracting mapped reads ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        logging.info("%s    Start extracting mapped reads ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         [save_path, file_name] = extract_mapped_reads.get_name(args)
         extract_mapped_reads.pre_alignment(args, save_path, file_name)
         extract_mapped_reads.extract_reads_by_name(args, save_path, file_name)
@@ -554,21 +593,28 @@ def main():
         if args.pe_fastq is not None:
             args.pe_fastq = save_path + file_name + '.read2.mapped.fastq'
 
-    print("%s    Start extracting UMIs from reads ...\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("%s    Start extracting UMIs from reads ...\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     umi_n5 = analyze_umi(args)
 
     # Below is for the specific Illumina data set
     # combine_pe_umi(args)
 
     combine_pe_umi(args)
-    print("\n%s    Extract UMIs from reads finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("\n%s    Extract UMIs from reads finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     extract_name_lst(args)
-    print("%s    Group reads by UMIs finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("%s    Group reads by UMIs finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # umi_n5 = 'NNNNNNNNNN'
-    print("%s    Start individual UMI group analysis ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logging.info("%s    Start individual UMI group analysis ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     lst2fastq_variant(args, umi_n5)
     final_clean_up(args)
-    print("\n%s    ------------ Jobs done! ------------\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    if fastq_gzip is True:
+        os.remove(tmp_fastq)
+
+    if pe_fastq_gzip is True:
+        os.remove(tmp_pe_fastq)
+
+    logging.info("\n%s    ------------ Jobs done! ------------\n" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 if __name__ == '__main__':

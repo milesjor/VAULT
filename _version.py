@@ -1,1 +1,1 @@
-vault_version = "VAULT 0.5.2"
+vault_version = "VAULT 0.6"

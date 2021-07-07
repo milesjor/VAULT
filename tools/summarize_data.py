@@ -88,7 +88,7 @@ def vcf_2_circos_like_file(path, refer_name):
             sep='\t'
         ).rename(columns={'#CHROM': 'CHROM'})
 
-    pd_vcf = read_vcf(snv_file)
+    pd_vcf = read_vcf(snv_vcf_no_indel)
 
     # print(pd_vcf['POS'])
     # print(pd_vcf.POS.nunique())
@@ -192,9 +192,9 @@ def read_usage(args):
     logging.info("reads_with_umi is: %s" % reads_with_umi)
 
     cmd = """ls {path}/snp/perfect_umi | wc -l""".format(path=path)
-    detected_passed_molecule_number = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
+    detected_molecule_number = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                                      stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
-    logging.info("detected_molecule_number is: %s" % detected_passed_molecule_number)
+    logging.info("detected_molecule_number is: %s" % detected_molecule_number)
 
     cmd = """wc -l {path}/snp/pass.group.lst """.format(path=path)
     detected_passed_molecule_number = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
@@ -264,17 +264,17 @@ def read_usage(args):
                                            stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split(" ")[0]
     logging.info("p95_coverage_molecule is: %s" % p95_coverage_molecule)
 
-    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | cut -f3 | sort | uniq | wc -l""".format(path=path)
+    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | grep -v "INDEL" | cut -f3 | sort | uniq | wc -l""".format(path=path)
     molecule_with_snv = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
     logging.info("molecule_with_snv is: %s" % molecule_with_snv)
 
-    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | wc -l""".format(path=path)
+    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | grep -v "INDEL" | wc -l""".format(path=path)
     total_snv_number = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
     logging.info("total_snv_number is: %s" % total_snv_number)
 
-    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | cut -f2,4,5 | sort | uniq | wc -l""".format(path=path)
+    cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | grep -v "INDEL" | cut -f2,4,5 | sort | uniq | wc -l""".format(path=path)
     unique_snv_number = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
     logging.info("unique_snv_number is: %s" % unique_snv_number)
@@ -291,7 +291,7 @@ def read_usage(args):
                        awk2=awk2)
     snv_number_per_molecule = ",".join(subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                                       stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split("\t")[2:6])
-    logging.info("snv_number_per_molecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
+    logging.info("normalized_snv_number_per_molecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
 
     refer_name = ""
     with open(refer_seq, 'r') as infile:
@@ -314,7 +314,7 @@ def read_usage(args):
             | uniq -c > {path}/snp/summary/pass.somatic.1count.2snv.txt
         unique_somatic_snv_number=0
         total_somatic_snv_number=0
-        unique_somatic_snv_number=$(cat {path}/snp/summary/pass.somatic.1count.2snv.txt | wc -l)
+        unique_somatic_snv_number=$(cat {path}/snp/summary/pass_snp_from_perfect_umi.flt.snvONLY.somatic.vcf | grep -v "^#" | cut -f2,4,5 | sort | uniq | wc -l)
         total_somatic_snv_number=$(cat {path}/snp/summary/pass_snp_from_perfect_umi.flt.snvONLY.somatic.vcf | grep -v "^#" | wc -l)
         echo $total_somatic_snv_number $unique_somatic_snv_number
         """.format(somatic_threshold=somatic_snv_vaf_threshold,
@@ -326,7 +326,7 @@ def read_usage(args):
     logging.info("total_somatic_snv_number is: %s" % total_somatic_snv_number)
     logging.info("unique_somatic_snv_number is: %s" % unique_somatic_snv_number)
 
-    awk9 = """awk '{n+=$2}END{print n}'  """
+    awk9 = """awk 'BEGIN{n=0}{n+=$2}END{print n}'  """
     awk10 = """awk '{print $1/$2*1000000}' """
     cmd = """total_somatic_snv=$(cat {path}/snp/summary/pass_snp_from_perfect_umi.flt.snvONLY.somatic.vcf | grep -v "^#" | wc -l)
             total_coverage=$(cat {path}/snp/summary/pass.coverage.3plus.length.txt | {awk9})
@@ -353,42 +353,45 @@ def read_usage(args):
             molecule_with_duplication=0
             total_duplication=0
             
-            molecule_with_sv=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | cut -f3 \
+            molecule_with_sv=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | cut -f3 \
                 | sort | uniq | wc -l)
-            total_sv_number=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | wc -l)
-            unique_sv_number=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | \
+            total_sv_number=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | wc -l)
+            unique_sv_number=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | \
                 {awk12} | sort | uniq | wc -l)
-            cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | \
+            cat {path}/snp/{sv_file_name} | grep -v "^#" | \
                 {awk12} | sort | uniq -c | sort -k3 | {awk11} > {path}/snp/summary/all_sv.1count.2pos.3type.4length.txt
-            molecule_with_deletion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "DEL" | {awk14})
-            total_deletion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "DEL" | wc -l)
+            molecule_with_deletion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "DEL" | {awk14})
+            total_deletion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "DEL" | wc -l)
             
-            molecule_with_insertion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "INS" | {awk14})
-            total_insertion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "INS" | wc -l)
+            molecule_with_insertion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "INS" | {awk14})
+            total_insertion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "INS" | wc -l)
             
-            molecule_with_inversion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "INV" | {awk14})
-            total_inversion=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "INV" | wc -l)
+            molecule_with_inversion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "INV" | {awk14})
+            total_inversion=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "INV" | wc -l)
             
-            molecule_with_duplication=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "DUP" | {awk14})
-            total_duplication=$(cat {path}/snp/all_sv_from_perfect_umi.filtered.*.vcf | grep -v "^#" | {awk13} | grep "DUP" | wc -l)
+            molecule_with_duplication=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "DUP" | {awk14})
+            total_duplication=$(cat {path}/snp/{sv_file_name} | grep -v "^#" | {awk13} | grep "DUP" | wc -l)
             echo $molecule_with_sv $total_sv_number $unique_sv_number $molecule_with_deletion $total_deletion \
                 $molecule_with_insertion $total_insertion $molecule_with_inversion $total_inversion \
                 $molecule_with_duplication $total_duplication
-            """.format(path=path, awk11=awk11, awk12=awk12, awk13=awk13, awk14=awk14)
+            """.format(path=path, awk11=awk11, awk12=awk12, awk13=awk13, awk14=awk14,
+                       pass_group_number=detected_passed_molecule_number,
+                       sv_file_name="all_sv_from_perfect_umi.filtered.*.vcf")  # !!!!!!!! sv file name, 0.5 can be other value
+
     molecule_with_sv, total_sv_number, unique_sv_number, molecule_with_deletion, total_deletion, \
     molecule_with_insertion, total_insertion, molecule_with_inversion, total_inversion, \
     molecule_with_duplication, total_duplication = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                                                   stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split()
-    logging.info("molecule_with_sv is: %s" % molecule_with_sv)
+    logging.info("molecule_with_sv is: %s/%.2f%%" % (molecule_with_sv, 100*float(int(molecule_with_sv)/int(detected_passed_molecule_number))))
     logging.info("total_sv_number is: %s" % total_sv_number)
     logging.info("unique_sv_number is: %s" % unique_sv_number)
-    logging.info("molecule_with_deletion is: %s" % molecule_with_deletion)
+    logging.info("molecule_with_deletion is: %s/%.2f%%" % (molecule_with_deletion, 100*float(int(molecule_with_deletion)/int(detected_passed_molecule_number))))
     logging.info("total_deletion is: %s" % total_deletion)
-    logging.info("molecule_with_insertion is: %s" % molecule_with_insertion)
+    logging.info("molecule_with_insertion is: %s/%.2f%%" % (molecule_with_insertion, 100*float(int(molecule_with_insertion)/int(detected_passed_molecule_number))))
     logging.info("total_insertion is: %s" % total_insertion)
-    logging.info("molecule_with_inversion is: %s" % molecule_with_inversion)
+    logging.info("molecule_with_inversion is: %s/%.2f%%" % (molecule_with_inversion, 100*float(int(molecule_with_inversion)/int(detected_passed_molecule_number))))
     logging.info("total_inversion is: %s" % total_inversion)
-    logging.info("molecule_with_duplication is: %s" % molecule_with_duplication)
+    logging.info("molecule_with_duplication is: %s/%.2f%%" % (molecule_with_duplication, 100*float(int(molecule_with_duplication)/int(detected_passed_molecule_number))))
     logging.info("total_duplication is: %s" % total_duplication)
 
 

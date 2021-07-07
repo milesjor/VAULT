@@ -52,7 +52,7 @@ def get_argparse():
                            help='path/to/ref.fa, reference sequence in VAULT analysis')
     summarize.add_argument('-q', '--fastq', type=validate_file, required=True,
                            help='path/to/reads.fastq, raw sequencing reads analyzed by VAULT')
-    summarize.add_argument('-T', '--somatic_VAF', type=float, default='0.1', help='VAF threshold to define a somatic SNV')
+    summarize.add_argument('-T', '--somatic_VAF', type=float, default='0.01', help='VAF threshold to define a somatic SNV [0.01]')
     summarize.add_argument('--unmapped_reads', action='store_true', help='use --unmapped_reads here if you used it in vault analysis')
 
 

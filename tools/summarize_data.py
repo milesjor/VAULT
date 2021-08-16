@@ -291,7 +291,7 @@ def read_usage(args):
                        awk2=awk2)
     snv_number_per_molecule = ",".join(subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                                       stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split("\t")[2:6])
-    logging.info("normalized_snv_number_per_molecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
+    logging.info("normalized_snv_number_per_SNVContainingMolecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
 
     refer_name = ""
     with open(refer_seq, 'r') as infile:

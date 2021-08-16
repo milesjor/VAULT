@@ -214,7 +214,7 @@ The UMI group filter will eliminate problematic UMI groups by surveying the read
 
 ### Generate a summary of the analysis
 Try the below command to generate a summary of the run, it includes several useful number as shown below. Please use the same parameters as the previous vault analysis. You can find your previous vault command in ***./example/result/date_time_vault.log***
-> vault summarize -q ./example/nanopore_reads.fastq.gz -s ./example/result -r ./example/reference.fa --unmapped_reads -T 0.1
+> vault summarize -q ./example/nanopore_reads.fastq.gz -s ./example/result -r ./example/reference.fa --unmapped_reads -T 0.01
 
 Output:
 ```
@@ -222,27 +222,27 @@ raw_read_number is: 252
 used_read_number is: 246
 reads_with_umi is: 246
 detected_molecule_number is: 24          # detected UMI groups(molecule)
-detected_passed_molecule_number is: 22   # filtered-passed UMI groups(molecule)
+detected_passed_molecule_number is: 21   # filtered-passed UMI groups(molecule)
 refer_seq_length is: 7077
-covered_region_of_molecule(avg,median,min,max) is: 5842.41,6895.5,1582,7077   # length of regions with >=3 depth in each UMI group
-p95_coverage_molecule is: 13             # UMI groups(molecule) with more than 95% of regions covered by >=3 depth
-molecule_with_snv is: 17
-total_snv_number is: 64
-unique_snv_number is: 15
-snv_number_per_molecule(avg,median,min,max) is: 4.00683,4.04804,1.00493,9.00194
-total_somatic_snv_number is: 5           # somatic SNV is defined as SNVs with VAF < $threshold (defined by -T)
-unique_somatic_snv_number is: 5
-somatic_snv_load_per_Mbp is: 38.9005
-molecule_with_sv is: 16
+covered_region_of_molecule(avg,median,min,max) is: 5784.67,6858,1582,7077   # length of regions with >=3 depth in each UMI group
+p95_coverage_molecule is: 12             # UMI groups(molecule) with more than 95% of regions covered by >=3 depth
+molecule_with_snv is: 16
+total_snv_number is: 63
+unique_snv_number is: 14
+normalized_snv_number_per_SNVContainingMolecule(avg,median,min,max) is: 4.00683,4.04804,1.00493,9.00194
+total_somatic_snv_number is: 0           # somatic SNV is defined as SNVs with VAF < $threshold (defined by -T)
+unique_somatic_snv_number is: 0
+somatic_snv_load_per_Mbp is: 0
+molecule_with_sv is: 16/76.19%
 total_sv_number is: 32
 unique_sv_number is: 13
-molecule_with_deletion is: 15		 # Below shows only deletion, insertion, inversion and duplication. For more information of SVs, please check ./example/result/snp/summary/all_sv.1count.2pos.3type.4length.txt
+molecule_with_deletion is: 15/71.43%     # Below shows only deletion, insertion, inversion and duplication. For more information of SVs, please check ./example/result/snp/summary/all_sv.1count.2pos.3type.4length.txt
 total_deletion is: 30
-molecule_with_insertion is: 1
+molecule_with_insertion is: 1/4.76%
 total_insertion is: 2
-molecule_with_inversion is: 0
+molecule_with_inversion is: 0/0.00%
 total_inversion is: 0
-molecule_with_duplication is: 0
+molecule_with_duplication is: 0/0.00%
 total_duplication is: 0
 ```
 

@@ -164,7 +164,7 @@ Optional options:
     ├── 3end_UMIs
     └── 5end_UMIs
 ```
-
+In the "snp" folder, the files with "all" prefix mean that they are from all UMI groups in ./snp/perfect_umi folder. The files with "pass" prefix mean they are from "--group_filter" passed UMI groups, which is shown in ./snp/pass.group.lst
 ### Individual UMI group folder
 ```
 ./result/snp/perfect_umi/

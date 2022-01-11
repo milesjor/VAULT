@@ -153,6 +153,38 @@ def extract_name_lst(args):
     p.join()
 
 
+def extract_umi_reads(args):
+    path = args.save_path
+    [save_path, file_name] = extract_mapped_reads.get_name(args)
+    outfastq = args.save_path + '/' + file_name + '_umi.fastq'
+    cmd = """cat {path}/umi_analysis/5end_UMIs/umi_analysis.05.adapter_with_right_flank.fasta | grep "^>" > {path}/umi_analysis/5.read.with.umi.name.lst
+            cat {path}/umi_analysis/3end_UMIs/umi_analysis.05.adapter_with_right_flank.fasta | grep "^>" > {path}/umi_analysis/3.read.with.umi.name.lst
+            cat {path}/umi_analysis/5.read.with.umi.name.lst {path}/umi_analysis/3.read.with.umi.name.lst | sort | \
+            uniq | cut -d ">" -f2 | cut -d " " -f1  > {path}/umi_analysis/5_3.read.with.umi.name.lst
+            seqtk subseq {fastq} {path}/umi_analysis/5_3.read.with.umi.name.lst > {outfile}
+            """.format(path=path,
+                       fastq=args.fastq,
+                       outfile=outfastq)
+    subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
+
+    if args.pe_fastq is not None:
+        outfastq_pe = args.save_path + '/' + file_name + '_umi.pe.fastq'
+        cmd = """cat {path}/umi_analysis/5end_UMIs/umi_analysis.05.adapter_with_right_flank.fasta | grep "^>" > {path}/umi_analysis/5.read.with.umi.name.lst
+                    cat {path}/umi_analysis/3end_UMIs/umi_analysis.05.adapter_with_right_flank.fasta | grep "^>" > {path}/umi_analysis/3.read.with.umi.name.lst
+                    cat {path}/umi_analysis/5.read.with.umi.name.lst {path}/umi_analysis/3.read.with.umi.name.lst | \
+                    sort | uniq | cut -d ">" -f2 | cut -d " " -f1  > {path}/umi_analysis/5_3.read.with.umi.name.lst
+                    seqtk subseq {fastq} {path}/umi_analysis/5_3.read.with.umi.name.lst > {outfile}
+                    """.format(path=path,
+                               fastq=args.fastq,
+                               outfile=outfastq_pe)
+        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT).stdout.decode('utf-8').strip()
+    else:
+        outfastq_pe = None
+    return outfastq, outfastq_pe
+
+
 def lst2fastq_variant(args, umi_n5):
     umi_regex5 = '^' + umi_n5 + '$'
     umi_regex5 = re.sub('N', '[ATGC]', umi_regex5)
@@ -213,6 +245,8 @@ def lst2fastq_variant(args, umi_n5):
         os.mkdir(args.save_path + '/snp')
         os.mkdir(args.save_path + '/snp/perfect_umi')
 
+    [umi_fastq, umi_fastq_pe] = extract_umi_reads(args)
+
     # multiprocessing module for combining read name from same 5' and 3' umi, and extract reads, and analyze snp
     p = multiprocessing.Pool(args.thread)
     with open(file5, "r") as infile5:
@@ -220,8 +254,10 @@ def lst2fastq_variant(args, umi_n5):
             seq_splt = seq.strip().split(' ')
             count5 = seq_splt[0]
             umi = seq_splt[1]
-            p.apply_async(use_class_5end, args=(umi, args.save_path, args.fastq, count5, umi_regex5, args.threshold,
-                                                args.refer, args.bash_thread, args.align_mode, args.pe_fastq))
+            # p.apply_async(use_class_5end, args=(umi, args.save_path, args.fastq, count5, umi_regex5, args.threshold,
+            #                                     args.refer, args.bash_thread, args.align_mode, args.pe_fastq))
+            p.apply_async(use_class_5end, args=(umi, args.save_path, umi_fastq, count5, umi_regex5, args.threshold,
+                                                args.refer, args.bash_thread, args.align_mode, umi_fastq_pe))
     p.close()
     p.join()
     logging.info("%s    5'+3' and 5' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -234,8 +270,12 @@ def lst2fastq_variant(args, umi_n5):
                 name_lst3 = args.save_path + '/umi_analysis/3end_UMIs/reads_with_same_UMIs/' + file
                 umi3 = re.split('[_.]', file)[1]
                 count3 = re.split('[_.]', file)[0]
-                p.apply_async(use_class_3end, args=(umi3, args.save_path, args.fastq, count3, umi_regex3, args.threshold,
-                                                    args.refer, args.bash_thread, args.align_mode, args.pe_fastq, name_lst3))
+                # p.apply_async(use_class_3end, args=(umi3, args.save_path, args.fastq, count3, umi_regex3,
+                #                                     args.threshold, args.refer, args.bash_thread,
+                #                                     args.align_mode, args.pe_fastq, name_lst3))
+                p.apply_async(use_class_3end, args=(umi3, args.save_path, umi_fastq, count3, umi_regex3,
+                                                    args.threshold, args.refer, args.bash_thread,
+                                                    args.align_mode, umi_fastq_pe, name_lst3))
         p.close()
         p.join()
         logging.info("%s    The rest 3' end UMI analysis finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -300,7 +340,12 @@ class ProcessUmi:
         cmd = """seqtk subseq {fastq} {name_lst} > {outfile}""".format(fastq=self.fastq,
                                                                        name_lst=name_lst,
                                                                        outfile=of)
-        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+        a = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if a.stdout != b'':
+            logging.info("stdout from " + umi_name + " :\n" + a.stdout.decode('utf-8'))
+        if a.stderr != b'':
+            logging.info("stderr from " + umi_name + " :\n" + a.stderr.decode('utf-8'))
+
         fastq_file = of
 
         # Below is for normal data set
@@ -309,7 +354,11 @@ class ProcessUmi:
             cmd = """seqtk subseq {fastq} {name_lst} > {outfile}""".format(fastq=self.read2,
                                                                            name_lst=name_lst,
                                                                            outfile=of2)
-            subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+            a = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if a.stdout != b'':
+                logging.info("stdout from " + umi_name + " :\n" + a.stdout.decode('utf-8'))
+            if a.stderr != b'':
+                logging.info("stderr from " + umi_name + " :\n" + a.stderr.decode('utf-8'))
             fastq_file = of + ' ' + of2
 
         # # Below is for the specific Illumina data set
@@ -605,6 +654,7 @@ def main():
     logging.info("%s    Group reads by UMIs finished" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # umi_n5 = 'NNNNNNNNNN'
     logging.info("%s    Start individual UMI group analysis ..." % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
     lst2fastq_variant(args, umi_n5)
     final_clean_up(args)
 

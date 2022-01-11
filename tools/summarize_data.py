@@ -141,6 +141,7 @@ def read_usage(args):
     refer_seq = args.refer
     somatic_snv_vaf_threshold = args.somatic_VAF
     unmapped_reads = args.unmapped_reads
+    sv_file_name = "all_sv_from_perfect_umi.filtered.[0-9]*\.[0-9].vcf"
 
     # TBD
     raw_read_number = ""
@@ -260,8 +261,12 @@ def read_usage(args):
             wc -l {path}/snp/summary/pass.95p.group.lst""".format(path=path,
                                                                   awk5=awk5,
                                                                   refer_length=int(refer_seq_length)*0.95)
+    subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    cmd = """wc -l {path}/snp/summary/pass.95p.group.lst""".format(path=path)
     p95_coverage_molecule = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split(" ")[0]
+
     logging.info("p95_coverage_molecule is: %s" % p95_coverage_molecule)
 
     cmd = """cat {path}/snp/pass_snp_from_perfect_umi.flt.vcf | grep -v "^#" | grep -v "INDEL" | cut -f3 | sort | uniq | wc -l""".format(path=path)
@@ -291,7 +296,7 @@ def read_usage(args):
                        awk2=awk2)
     snv_number_per_molecule = ",".join(subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE,
                                                       stderr=subprocess.STDOUT).stdout.decode('utf-8').strip().split("\t")[2:6])
-    logging.info("normalized_snv_number_per_SNVContainingMolecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
+    logging.info("normalized_snv_number_per_molecule(avg,median,min,max) is: %s" % snv_number_per_molecule)
 
     refer_name = ""
     with open(refer_seq, 'r') as infile:
@@ -376,7 +381,7 @@ def read_usage(args):
                 $molecule_with_duplication $total_duplication
             """.format(path=path, awk11=awk11, awk12=awk12, awk13=awk13, awk14=awk14,
                        pass_group_number=detected_passed_molecule_number,
-                       sv_file_name="all_sv_from_perfect_umi.filtered.*.vcf")  # !!!!!!!! sv file name, 0.5 can be other value
+                       sv_file_name=sv_file_name)
 
     molecule_with_sv, total_sv_number, unique_sv_number, molecule_with_deletion, total_deletion, \
     molecule_with_insertion, total_insertion, molecule_with_inversion, total_inversion, \

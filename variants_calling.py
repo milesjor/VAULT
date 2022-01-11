@@ -1,6 +1,6 @@
 import subprocess
 import sys
-
+import logging
 
 """
 bcftools mpileup options
@@ -51,9 +51,9 @@ def snp_calling(save, thread, ax, refer, fastq, name):
 
     a = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if a.stdout != b'':
-        print("stdout from " + save + " :\n" + a.stdout.decode('utf-8'))
+        logging.info("stdout from " + save + " :\n" + a.stdout.decode('utf-8'))
     if a.stderr != b'':
-        print("stderr from " + save + " :\n" + a.stderr.decode('utf-8'))
+        logging.info("stderr from " + save + " :\n" + a.stderr.decode('utf-8'))
 
 
 def sv_calling(save, thread, refer, fastq, name, map_mode='-x ont'):
@@ -79,9 +79,9 @@ def sv_calling(save, thread, refer, fastq, name, map_mode='-x ont'):
 
     a = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if a.stdout != b'':
-        print("stdout from " + save + " :\n" + a.stdout.decode('utf-8'))
+        logging.info("stdout from " + save + " :\n" + a.stdout.decode('utf-8'))
     if a.stderr != b'':
-        print("stderr from " + save + " :\n" + a.stderr.decode('utf-8'))
+        logging.info("stderr from " + save + " :\n" + a.stderr.decode('utf-8'))
 
 
 if __name__ == '__main__':

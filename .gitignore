@@ -2,3 +2,7 @@
 *.DS_Store
 .DS_Store
 tools/.DS_Store
+.idea/
+__pycache__/
+legacy_tools/
+example/result*/

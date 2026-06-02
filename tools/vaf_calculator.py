@@ -8,7 +8,7 @@ import sys
 
 
 def rem_mlt_alt(save_path):
-    vcf = save_path + '/pass_snp_from_perfect_umi.flt.vcf'
+    vcf = save_path + '/pass_snv_from_perfect_umi.flt.vcf'
     file_name = re.split(r'/', vcf)[-1]
     file_name = re.split(r'.vcf', file_name)[0]
     outvcf = save_path + '/' + file_name + '.1alt.vcf'
@@ -46,8 +46,8 @@ def rem_mlt_alt(save_path):
 
 
 def count_snv(save_path, name):
-    vcf = save_path + '/pass_snp_from_perfect_umi.flt.1alt.vcf'
-    snv_vcf = save_path + '/pass_snp_from_perfect_umi.flt.1alt.snv.vcf'
+    vcf = save_path + '/pass_snv_from_perfect_umi.flt.1alt.vcf'
+    snv_vcf = save_path + '/pass_snv_from_perfect_umi.flt.1alt.snv.vcf'
     out = save_path + '/' + name + '_snv.count.txt'
 
     with open(vcf, 'r') as infile, open(snv_vcf, 'w') as outfile:
@@ -81,8 +81,8 @@ def count_snv(save_path, name):
     count_pos = pd_vcf.groupby(["POS", "REF", "ALT"]).size().reset_index(name="count")
     sort_count = count_pos.sort_values('POS').reset_index(drop=True)
     sort_count.insert(0, 'chr', 'mt1')
-    snp_df = sort_count[['chr', 'POS', 'POS', 'count', 'REF', 'ALT']]
-    np.savetxt(out, snp_df, fmt='%s')
+    snv_df = sort_count[['chr', 'POS', 'POS', 'count', 'REF', 'ALT']]
+    np.savetxt(out, snv_df, fmt='%s')
 
 
 def count_to_freq(save_path, name):
@@ -116,7 +116,7 @@ def get_vaf(args):
     infolder = args.save_path
     name = args.name
 
-    # infolder = "/Users/bic/Desktop/codes/github/VAULT_local/example/result/snp"
+    # infolder = "/Users/bic/Desktop/codes/github/VAULT/example/result/per_umi_process"
     # name = "VAFcalculator"
 
     # run UMI group filter

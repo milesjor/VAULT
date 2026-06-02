@@ -1,14 +1,38 @@
 channels:
-  - bioconda
   - conda-forge
-  - r
+  - bioconda
+  - nodefaults
 dependencies:
-  - python=3.6
-  - samtools=1.9
-  - bcftools=1.9
-  - minimap2=2.11
-  - seqtk=1.3
-  - cutadapt=2.7
-  - sniffles=1.0.11
+  - python=3.10
   - numpy
   - pandas
+  - scipy
+  - biopython
+  - samtools=1.23
+  - bcftools=1.23
+  - htslib=1.23
+  - gsl=2.7
+  - minimap2=2.30
+  - seqtk=1.5
+  - cutadapt
+  - git
+  - cmake
+  - make
+  - c-compiler
+  - cxx-compiler
+  - zlib
+  - pip
+
+# Usage:
+#   conda env create --name vault --file ./tools/vault_env.yaml
+#
+# Sniffles v1.0.12b and cutadapt v2.7 are intentionally not pinned here:
+#   - Sniffles 1.0.12b is not available as a portable conda package.
+#   - cutadapt 2.7 is not available for osx-arm64.
+# This portable environment installs a current cutadapt build for the active
+# platform. If you need a legacy cutadapt 2.7 binary, pass it explicitly with
+# --cutadapt_path or set VAULT_CUTADAPT27.
+#
+# Sniffles is optional and version-sensitive:
+#   - install Sniffles1 separately and use --sv_caller sniffles1, or
+#   - install Sniffles2 separately and use --sv_caller sniffles2.

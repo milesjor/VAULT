@@ -10,7 +10,7 @@ from operator import itemgetter
 
 
 def get_argparse():
-    parser = argparse.ArgumentParser(description='This is for correcting the position of SNP in vcf file')
+    parser = argparse.ArgumentParser(description='This is for correcting the position of SNV in vcf file')
     parser.add_argument('-v', '--vcf_file', type=validate_file, required=True, help='path/to/file.vcf')
     parser.add_argument('-c', '--chr_name', type=str, required=True, help='chromosome name')
     parser.add_argument('-p', '--pos_change', type=str, required=True, help='position change')

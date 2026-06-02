@@ -14,7 +14,7 @@ import sys
 
 def get_argparse():
     parser = argparse.ArgumentParser(description='Just input the path to VAULT result folder '
-                                                 '--> the folder contain (/snp /grouped_reads /umi analysis)')
+                                                 '--> the folder contain (/per_umi_process /grouped_reads /umi analysis)')
     parser.add_argument('-s', '--save_path', type=str, required=True, help='path/to/VAULT_result_folder/')
     parser.add_argument('-t', '--thread', type=int, default='6', help='parallel worker [6]')
     parser.add_argument('-T', '--sub_thread', type=int, default='4', help='thread for every parallel worker [4]')

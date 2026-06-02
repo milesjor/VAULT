@@ -312,9 +312,9 @@ def vcf_circos(args):
     count_pos = pd_vcf.POS.value_counts().reset_index().rename(columns={'POS': 'count', 'index': 'POS'})
     sort_count = count_pos.sort_values('POS').reset_index(drop=True)
     sort_count.insert(0, 'chr', 'mt1')
-    snp_df = sort_count[['chr', 'POS', 'POS', 'count']]
+    snv_df = sort_count[['chr', 'POS', 'POS', 'count']]
 
-    np.savetxt(out, snp_df, fmt='%s')
+    np.savetxt(out, snv_df, fmt='%s')
 
 
 def count_to_freq(args):

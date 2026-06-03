@@ -290,7 +290,7 @@ subcommands:
     vdj                 detect IGH VDJ clonotypes (MRD) using IgBLAST
     summarize           summarize the result of a VAULT run
     consensus           get consensus sequence from VAULT result
-    position            correct position and chromosome name in a VCF file
+    position            liftover VAULT VCF coordinates to a standard reference
     circos              prepare data for circos (used in iMiGseq)
     filter              filter out low-confidence UMI groups
     vaf                 calculate variant allele frequency (VAF) based on UMI group counts
@@ -369,7 +369,7 @@ Current VAULT subcommands:
 | `vdj` | Detect IGH VDJ clonotypes for MRD workflows using IgBLAST; optional consensus uses minimap2/racon and medaka. |
 | `summarize` | Summarize a finished VAULT run, including read counts, molecule counts, SNV/SV loads, and coverage statistics. |
 | `consensus` | Generate per-UMI consensus sequences from VAULT results using canu and medaka. |
-| `position` | Correct chromosome name and coordinate offsets in a VCF file; optionally reverse coordinates and reverse-complement alleles. |
+| `position` | Lift over VAULT VCF coordinates from the VAULT analysis reference to a standard reference genome using minimap2; supports linear amplicons and clean two-block split alignments such as circular mtDNA references. |
 | `circos` | Prepare depth and VCF-derived files for circos-style iMiGseq plots. |
 | `filter` | Filter low-confidence UMI groups after VAULT analysis. |
 | `vaf` | Calculate SNV variant allele frequency from UMI group counts. |
@@ -525,10 +525,52 @@ python ./vault circos \
 Correct VCF positions for downstream annotation:
 ```
 python ./vault position \
-        -v ./example/result/per_umi_process/pass_snv_from_perfect_umi.flt.vcf \
-        -c chrM \
-        -p +0 \
+        --vcf ./example/result/per_umi_process/pass_snv_from_perfect_umi.flt.vcf \
+        --analysis_ref ./example/reference.fa \
+        --standard_ref /path/to/standard_reference.fa \
         -s ./example/position_corrected
+```
+
+`vault position` in v1.1.0 uses reference-to-reference coordinate conversion.
+Provide the reference used by VAULT analysis with `--analysis_ref` and the
+target genome used by downstream annotation with `--standard_ref`. The command
+aligns `--analysis_ref` to `--standard_ref` with minimap2, prints the minimap2
+version and an alignment schematic, converts VCF `CHROM`, `POS`, `END`, and
+`CHR2` when present, and then randomly checks up to 20 converted variants by
+comparing coordinates and REF bases against both reference FASTA files.
+
+To convert all top-level VCF files inside an existing VAULT result folder:
+```
+python ./vault position \
+        --vault_result ./example/result \
+        --analysis_ref ./example/reference.fa \
+        --standard_ref /path/to/standard_reference.fa
+```
+
+With `--vault_result`, output is written to
+`per_umi_process/pos_correct_vcf/`. With `--vcf`, output is written to the input
+VCF directory unless `-s/--save_path` is provided. Records that cannot be mapped
+to the standard reference are written to `*_standard_ref.unmapped.vcf`; if there
+are no unmapped records, no unmapped file is created.
+
+Use `--chr_name` only when a downstream annotation tool requires a different
+chromosome name from the one in `--standard_ref`, for example:
+```
+python ./vault position \
+        --vcf ./example/result/per_umi_process/pass_snv_from_perfect_umi.flt.vcf \
+        --analysis_ref ./example/reference.fa \
+        --standard_ref /path/to/human_chrM.fa \
+        --chr_name MT \
+        -s ./example/position_corrected_for_snpeff
+```
+
+If minimap2 is not available in `PATH`, pass its executable explicitly:
+```
+python ./vault position \
+        --vcf input.vcf \
+        --analysis_ref analysis.fa \
+        --standard_ref standard.fa \
+        --minimap2_path /path/to/minimap2
 ```
 
 Run IGH VDJ clonotype detection with IgBLAST. 

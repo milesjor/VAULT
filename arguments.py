@@ -333,25 +333,27 @@ def get_argparse():
 
     position = subparsers.add_parser(
         'position',
-        help='correct position and chromosome name in a VCF file',
+        help='liftover VAULT VCF coordinates to a standard reference',
         description=(
-            'Correct position and chromosome name in a VCF file to enable variant annotation. '
-            'Can also reverse the coordinate and perform reverse-complement of REF/ALT '
-            'if the reference used in VAULT is the reverse complement of the target genome.'
+            'Correct VAULT VCF coordinates by aligning the VAULT analysis '
+            'reference to a standard reference genome.'
         )
     )
     position.set_defaults(func=change_VCF_pos.position_main)
-    position.add_argument('-v', '--vcf_file', type=validate_file, required=True,
-                          help='path/to/file.vcf')
-    position.add_argument('-c', '--chr_name', type=str, required=True,
-                          help='chromosome name to be used in the corrected VCF')
-    position.add_argument('-p', '--pos_change', type=str, required=True,
-                          help='position offset, e.g. +12300 or -55789')
-    position.add_argument('-b', '--total_base', type=int,
-                          help='length of the reference genome used. If provided, coordinates will be reversed '
-                               'and DNA bases will be reverse-complemented.')
-    position.add_argument('-s', '--save_path', type=str, default="./",
-                          help='path/to/save/ [./]')
+    position.add_argument('-v', '--vcf', dest='vcf_file', type=validate_file,
+                          help='path/to/file.vcf or file.vcf.gz')
+    position.add_argument('--vault_result', type=str,
+                          help='path/to/VAULT_result_folder; convert VCFs directly under per_umi_process')
+    position.add_argument('-c', '--chr_name', type=str,
+                          help='force all converted CHROM/CHR2 names to this value')
+    position.add_argument('-s', '--save_path', type=str,
+                          help='optional output directory')
+    position.add_argument('--analysis_ref', type=validate_file, required=True,
+                          help='reference FASTA used by VAULT analysis')
+    position.add_argument('--standard_ref', type=validate_file, required=True,
+                          help='standard reference FASTA for downstream annotation')
+    position.add_argument('--minimap2_path', type=str, default='minimap2',
+                          help='minimap2 executable path [minimap2]')
 
     # ======================
     # subcommands: circos

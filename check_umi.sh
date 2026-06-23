@@ -106,20 +106,35 @@ echo "Length of UMIs is ${length}, group reads based on UMIs length from ${L3} t
 
 echo "--- ${n}.extract.${umi}.summary" > ${s}/${n}.00.cut_adapter.summary
 
-# Get UMIs adapter sequence
+# Get UMI adapter sequence. Find the named adapter field dynamically because
+# tabs in FASTQ descriptions shift cutadapt --info-file columns. In cutadapt
+# 2.7 and 5.x, the matched adapter sequence is two fields before its name.
 "${CUTADAPT_BIN}" -e ${error} --overlap 3 -j ${thread} -${para} Whole_UMIs_Adapter=${umi} --action=lowercase --discard-untrimmed -o ${s}/${n}.01.reads_with_adapter.fastq \
     ${input} --info-file=${s}/${n}.01.extract_reads_with_adapter.detail >> ${s}/${n}.00.cut_adapter.summary 2>&1
 
-if [[ -s "${s}/${n}.01.extract_reads_with_adapter.detail" ]];then
-    :
-else
+if [[ ! -s "${s}/${n}.01.extract_reads_with_adapter.detail" ]];then
     echo "====== can't generate extract_reads_with_adapter.detail file, maybe something is wrong with cutadapt? \
          \nPlease check ${s}/${n}.00.cut_adapter.summary ======" >&2
     exit 2
 fi
 
-cat ${s}/${n}.01.extract_reads_with_adapter.detail | awk -F "\t" '{if(NF>=11 && $8=="Whole_UMIs_Adapter") {print ">"$1"\n"$6}}' > \
-    ${s}/${n}.02.extracted.UMI_adapter.fasta
+awk -F "\t" '
+{
+    adapter_field = 0
+    for (i = 1; i <= NF; i++) {
+        if ($i == "Whole_UMIs_Adapter") {
+            adapter_field = i
+            break
+        }
+    }
+    if (adapter_field > 2) {
+        read_id = $1
+        sub(/[[:space:]].*$/, "", read_id)
+        print ">" read_id
+        print toupper($(adapter_field - 2))
+    }
+}
+' ${s}/${n}.01.extract_reads_with_adapter.detail > ${s}/${n}.02.extracted.UMI_adapter.fasta
 
 # use non-internal adapter {-g adapter} and {-a adapterX} to cut left and cut right
 echo "--- ${n}.cut_left_flank.${l}.summary" >> ${s}/${n}.00.cut_adapter.summary
@@ -135,27 +150,39 @@ echo "--- ${n}.cut_right_flank.${r}X.summary" >> ${s}/${n}.00.cut_adapter.summar
 "${CUTADAPT_BIN}" -e ${error} -j ${thread} -a right_flank=${r}X --action=trim --discard-untrimmed -o ${s}/${n}.05.adapter_without_right_flank.fasta \
     ${s}/${n}.04.adapter_without_left_flank.fasta >> ${s}/${n}.00.cut_adapter.summary 2>&1
 
-cat ${s}/${n}.05.adapter_without_right_flank.fasta | paste -d ","  - - | awk -F ">" '{print $2}' | awk -F "," '{print length($2)","$2","$1}' \
-    | awk -F "," '{if($1=='${length}') {print $2","$3}}' | awk -F " " '{print $1}' > ${s}/${n}.06.1umi.2read_name.csv
-
-cat ${s}/${n}.06.1umi.2read_name.csv | \
-awk -F "," '
+# Build UMI/read-ID tables without comma- or whitespace-sensitive parsing.
+# The .csv filename is retained for compatibility, but new records are tab-separated.
+awk -v expected_length="${length}" '
+/^>/ {
+    read_id = substr($0, 2)
+    sub(/[[:space:]].*$/, "", read_id)
+    next
+}
 {
-    k=$2
-    for (i=3;i<=NF;i++)
-        k=k" "$i
-    if (! a[$1])
-        a[$1]=k
+    umi = toupper($0)
+    if (length(umi) == expected_length)
+        print umi "\t" read_id
+}
+' ${s}/${n}.05.adapter_without_right_flank.fasta > ${s}/${n}.06.1umi.2read_name.csv
+
+awk -F "\t" '
+{
+    umi=$1
+    read_id=$2
+    if (! a[umi])
+        a[umi]=read_id
     else
-        a[$1]=a[$1]" "k
+        a[umi]=a[umi]" "read_id
+    count[umi]++
 }
 END{
     for (i in a)
-        print i" "a[i]
-}' | awk '{print NF-1" "$0}' > ${s}/${n}.07.1read_count.2umi.3read_name.lst
+        print count[i]" "i" "a[i]
+}
+' ${s}/${n}.06.1umi.2read_name.csv > ${s}/${n}.07.1read_count.2umi.3read_name.lst
 
 echo "---${umi_end} end Done!---"
 date
 
-rm ${s}/${n}.01.reads_with_adapter.fastq
-rm ${s}/${n}.01.extract_reads_with_adapter.detail
+rm -f ${s}/${n}.01.reads_with_adapter.fastq
+rm -f ${s}/${n}.01.extract_reads_with_adapter.detail

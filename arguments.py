@@ -20,6 +20,20 @@ def validate_file(x):
     return x
 
 
+def positive_int(x):
+    value = int(x)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be an integer >= 1")
+    return value
+
+
+def percentage(x):
+    value = float(x)
+    if value < 0 or value > 100:
+        raise argparse.ArgumentTypeError("must be between 0 and 100")
+    return value
+
+
 def get_argparse():
     parser = argparse.ArgumentParser(
         description='VAULT: analysis of UMI-labeled reads in IDMseq and iMiGseq.',
@@ -56,8 +70,11 @@ def get_argparse():
                      help='error tolerance rate in UMI analysis (depends on sequencing error rate) [0.08]')
     opt.add_argument('-t', '--thread', type=int, default=5,
                      help='number of parallel workers (Python/multiprocessing) [5]')
-    opt.add_argument('-T', '--threshold', type=int, default=5,
-                     help='minimal read number per UMI group for variant analysis [5]')
+    opt.add_argument(
+        '-T', '--threshold', type=int, default=None,
+        help='minimal read number per UMI group [5 for full analysis; '
+             '2 with --only_group_reads]'
+    )
     opt.add_argument('-b', '--bash_thread', type=int, default=1,
                      help='thread count for bash-based tools (minimap2, bcftools, sniffles, etc.) [1]')
     opt.add_argument('-F', '--allele_freq', type=float, default=0.67,
@@ -261,9 +278,22 @@ def get_argparse():
 
     # ---- consensus calling pipeline controls ----
     vdj.add_argument('--do_consensus', action='store_true',
-                     help='build consensus for top clonotypes (amplicon + VDJ-only) (default by racon; optionally medaka)')
-    vdj.add_argument('--consensus_top_k', type=int, default=1,
-                     help='call consensus for top K clonotypes [1]')
+                     help='build consensus for selected clonotypes (amplicon + VDJ-only) (default by racon; optionally medaka)')
+    vdj.add_argument(
+        '--consensus_top_k',
+        type=positive_int,
+        default=None,
+        help='limit consensus to the top K clonotypes by UMI count; '
+             'if neither consensus selector is provided, K defaults to 3'
+    )
+    vdj.add_argument(
+        '--consensus_top_p',
+        type=percentage,
+        default=None,
+        help='call consensus only for clonotypes with UMI fraction greater '
+             'than P percent; if neither consensus selector is provided, '
+             'P defaults to 10'
+    )
     vdj.add_argument('--racon_rounds', type=int, default=2,
                      help='number of racon polishing rounds [2]')
     vdj.add_argument('--consensus_threads', type=int, default=8,
@@ -429,6 +459,9 @@ def get_argparse():
     if getattr(args, "only_group_fastq", False):
         args.only_group_reads = True
     args.only_group_fastq = bool(getattr(args, "only_group_reads", False))
+
+    if args.subcommands_name is None and args.threshold is None:
+        args.threshold = 2 if args.only_group_reads else 5
 
     if args.subcommands_name in ["summarize", "consensus", "position", "circos",
                                  "filter", "vaf", "perumi", "vdj"]:

@@ -181,11 +181,6 @@ def filter_fastq_by_length_gz(fastq_in, min_len, max_len, save_path, base_name):
 
 
 def analyze_umi(args):
-    # In grouping-only mode, we still want FASTQ for *every* UMI group.
-    # The original 'threshold' was designed for downstream variant calling; here we force it to 1.
-    if _is_group_only(args):
-        args.threshold = 1
-
     """
     Run UMI extraction via check_umi.sh.
     This step splits the adapter into left flank / UMI / right flank,
@@ -1137,9 +1132,13 @@ def combine_pe_umi(args):
                     line = line.strip()
                     if not line:
                         continue
-                    parts = line.split(',')
-                    umi = parts[0]
-                    reads = parts[1:]
+                    if '\t' in line:
+                        umi, read_id = line.split('\t', 1)
+                        reads = [read_id]
+                    else:
+                        parts = line.split(',')
+                        umi = parts[0]
+                        reads = parts[1:]
                     if umi not in umi_to_reads:
                         umi_to_reads[umi] = set()
                     umi_to_reads[umi].update(reads)
@@ -1280,6 +1279,7 @@ def main():
     logging.info("error rate:     %s", args.error)
     logging.info("align mode:     %s", args.align_mode)
     logging.info("thread:         %s", args.thread)
+    logging.info("UMI threshold:  %s", args.threshold)
     logging.info("save path:      %s", args.save_path)
     logging.info("cutadapt bin:   %s", cutadapt_bin)
     if sniffles_bin:

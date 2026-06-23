@@ -16,7 +16,8 @@ Perumi mode workflow (recommended for VAULT):
 5) Summarize dominant clonotypes by UMI count.
 
 Optional: --do_consensus
-- For top dominant clonotypes, extract reads and generate two DNA consensus:
+- Select clonotypes with --consensus_top_k and/or --consensus_top_p, then
+  extract reads and generate two DNA consensus:
   (A) amplicon consensus:  reads.amplicon.fastq.gz -> minimap2 -> racon -> (optional medaka)
       reads.amplicon.fastq.gz is extracted from query.raw.fastq.gz (NO adapter trimming),
       so amplicon.consensus.fa contains primer/adaptor sequences (real amplicon).
@@ -1314,6 +1315,61 @@ def _write_perumi_outputs(
     logger.info(f"QC summary written: {qc_txt}")
 
 
+def select_consensus_items(
+    items: List[Tuple[int, int, tuple]],
+    top_k: Optional[int],
+    top_p: Optional[float],
+) -> Tuple[
+    List[Tuple[int, int, tuple]],
+    Optional[int],
+    Optional[float],
+    List[List[str]],
+]:
+    """Select clonotypes for consensus using rank and/or UMI percentage.
+
+    If neither selector is supplied, the combined defaults are top 3 and
+    UMI_fraction > 10%. If only one selector is supplied, only that criterion
+    is applied. When both are supplied, a clonotype must pass both.
+    """
+    if top_k is None and top_p is None:
+        effective_top_k: Optional[int] = 3
+        effective_top_p: Optional[float] = 10.0
+    else:
+        effective_top_k = int(top_k) if top_k is not None else None
+        effective_top_p = float(top_p) if top_p is not None else None
+
+    if effective_top_k is not None and effective_top_k < 1:
+        raise ValueError("consensus_top_k must be >= 1")
+    if effective_top_p is not None and not 0 <= effective_top_p <= 100:
+        raise ValueError("consensus_top_p must be between 0 and 100")
+
+    total_umi = sum(umi for umi, _reads, _key in items)
+    selected: List[Tuple[int, int, tuple]] = []
+    selection_rows: List[List[str]] = []
+
+    for rank, item in enumerate(items, start=1):
+        umi_count, read_count, key = item
+        fraction = (umi_count / total_umi) if total_umi else 0.0
+        percent = fraction * 100.0
+        rank_pass = effective_top_k is None or rank <= effective_top_k
+        percent_pass = effective_top_p is None or percent > effective_top_p
+        is_selected = rank_pass and percent_pass
+        if is_selected:
+            selected.append(item)
+        selection_rows.append([
+            str(rank),
+            str(umi_count),
+            f"{fraction:.6f}",
+            str(read_count),
+            "|".join(str(x) for x in key),
+            "1" if rank_pass else "0",
+            "1" if percent_pass else "0",
+            "1" if is_selected else "0",
+        ])
+
+    return selected, effective_top_k, effective_top_p, selection_rows
+
+
 def _run_consensus_pipeline(
     args,
     igblastn_exe: str,
@@ -1335,7 +1391,67 @@ def _run_consensus_pipeline(
         logger.info("----- vault vdj finished (no consensus) -----")
         return
 
-    logger.info("Consensus mode enabled: building dominant clonotype consensus sequences ...")
+    logger.info("Consensus mode enabled: building selected clonotype consensus sequences ...")
+
+    selected_items, effective_top_k, effective_top_p, selection_rows = select_consensus_items(
+        items=items,
+        top_k=getattr(args, "consensus_top_k", None),
+        top_p=getattr(args, "consensus_top_p", None),
+    )
+    base_cons_dir = os.path.join(out_dir, "consensus")
+    os.makedirs(base_cons_dir, exist_ok=True)
+    write_tsv(
+        os.path.join(base_cons_dir, "consensus.selection.tsv"),
+        [
+            "rank",
+            "UMI_count",
+            "UMI_fraction",
+            "read_count_sum",
+            "clonotype_key",
+            "rank_pass",
+            "percent_pass",
+            "selected",
+        ],
+        selection_rows,
+    )
+
+    criteria = []
+    if effective_top_k is not None:
+        criteria.append(f"rank <= {effective_top_k}")
+    if effective_top_p is not None:
+        criteria.append(f"UMI_fraction > {effective_top_p:g}%")
+    logger.info(
+        f"Consensus selection criteria: {' AND '.join(criteria)}; "
+        f"selected={len(selected_items)}/{len(items)}"
+    )
+
+    if not selected_items:
+        logger.warn(
+            "No clonotype satisfies the consensus selection criteria; "
+            "skip consensus generation."
+        )
+        write_tsv(
+            os.path.join(base_cons_dir, "consensus.summary.tsv"),
+            [
+                "clonotype_id",
+                "policy",
+                "strict_amplicon_reads",
+                "strict_vdj_reads",
+                "amplicon_reads",
+                "vdj_reads",
+                "amplicon_consensus_fasta",
+                "vdj_consensus_fasta",
+                "vdj_from_amplicon_consensus_fasta",
+            ],
+            [],
+        )
+        with open(
+            os.path.join(base_cons_dir, "consensus.summary.T.tsv"),
+            "w",
+        ) as f:
+            f.write("field\n")
+        logger.info("----- vault vdj finished (no clonotype selected for consensus) -----")
+        return
 
     minimap2_exe = resolve_exe("minimap2")
     racon_exe = resolve_exe("racon")
@@ -1353,11 +1469,10 @@ def _run_consensus_pipeline(
 
     consensus_threads = int(getattr(args, "consensus_threads", 8))
     racon_rounds = int(getattr(args, "racon_rounds", 2))
-    topk = int(getattr(args, "consensus_top_k", 1))
     medaka_model = str(getattr(args, "medaka_model", "auto")).strip()
     consensus_fallback_min_reads = int(getattr(args, "consensus_fallback_min_reads", 10))
 
-    top_keys = [key for _umi, _reads, key in items[:topk]]
+    top_keys = [key for _umi, _reads, key in selected_items]
 
     strict_amp = Counter()
     strict_vdj = Counter()
@@ -1396,9 +1511,6 @@ def _run_consensus_pipeline(
             min_j_identity=min_j_identity,
         )
         logger.info("Consensus policy=NONPRODUCTIVE_ALLOWED (require_productive=0). No fallback needed.")
-
-    base_cons_dir = os.path.join(out_dir, "consensus")
-    os.makedirs(base_cons_dir, exist_ok=True)
 
     key_to_outdir: Dict[tuple, str] = {}
     key_to_amp_fq: Dict[tuple, str] = {}
@@ -1518,7 +1630,10 @@ def _run_consensus_pipeline(
     for h in vdj_handles.values():
         h.close()
 
-    logger.info(f"Extracted reads into top {topk} clonotype bins under: {base_cons_dir}")
+    logger.info(
+        f"Extracted reads into {len(top_keys)} selected clonotype bins under: "
+        f"{base_cons_dir}"
+    )
     for k in top_keys:
         logger.info(
             f"  {os.path.basename(key_to_outdir[k])}\tpolicy={key_policy[k]}"
